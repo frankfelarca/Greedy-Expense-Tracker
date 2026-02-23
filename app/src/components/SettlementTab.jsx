@@ -55,7 +55,7 @@ export default function SettlementTab({ currentUser }) {
   const [proofModal, setProofModal] = useState(null);
   const [declineModal, setDeclineModal] = useState(null);
   const [declineReason, setDeclineReason] = useState("");
-  const [breakdownFilter, setBreakdownFilter] = useState("all");
+  const [breakdownFilter, setBreakdownFilter] = useState("mine");
   const savedInfo = paymentInfo[currentUser] || {
     gcash: "",
     maya: "",
@@ -205,6 +205,7 @@ export default function SettlementTab({ currentUser }) {
   const expensesByPair = useMemo(() => {
     const map = {};
     expenses.forEach((exp) => {
+      if (excludedExpenses[exp.id]) return;
       const share =
         Math.round((exp.amount / exp.splitAmong.length) * 100) / 100;
       exp.splitAmong.forEach((name) => {
@@ -216,7 +217,7 @@ export default function SettlementTab({ currentUser }) {
       });
     });
     return Object.values(map);
-  }, [expenses]);
+  }, [expenses, excludedExpenses]);
 
   const isUserSettlement = (s) =>
     currentUser && (s.from === currentUser || s.to === currentUser);
@@ -1093,6 +1094,38 @@ export default function SettlementTab({ currentUser }) {
             >
               Expense Breakdown
             </div>
+            {currentUser && (() => {
+              let toMe = 0;
+              let fromMe = 0;
+              expensesByPair.forEach((pair) => {
+                const total = pair.expenses.reduce((s, e) => s + e.owedAmount, 0);
+                if (pair.to === currentUser) toMe += total;
+                if (pair.from === currentUser) fromMe += total;
+              });
+              return (toMe > 0.01 || fromMe > 0.01) ? (
+                <div
+                  style={{
+                    display: "flex",
+                    gap: 16,
+                    marginBottom: 10,
+                    fontSize: "0.78rem",
+                    fontWeight: 600,
+                    paddingLeft: 2,
+                  }}
+                >
+                  {toMe > 0.01 && (
+                    <span style={{ color: "var(--green)" }}>
+                      Owed to you: {"\u20B1"}{formatNum(toMe)}
+                    </span>
+                  )}
+                  {fromMe > 0.01 && (
+                    <span style={{ color: "var(--accent1)" }}>
+                      You owe: {"\u20B1"}{formatNum(fromMe)}
+                    </span>
+                  )}
+                </div>
+              ) : null;
+            })()}
             {currentUser && (
               <div
                 style={{
@@ -1101,7 +1134,7 @@ export default function SettlementTab({ currentUser }) {
                   marginBottom: 10,
                 }}
               >
-                {[{ key: "all", label: "All" }, { key: "to_me", label: "To Me" }, { key: "from_me", label: "From Me" }].map((f) => (
+                {[{ key: "mine", label: "All Mine" }, { key: "to_me", label: "To Me" }, { key: "from_me", label: "From Me" }, { key: "all", label: "All" }].map((f) => (
                   <button
                     key={f.key}
                     onClick={() => setBreakdownFilter(f.key)}
@@ -1136,6 +1169,7 @@ export default function SettlementTab({ currentUser }) {
                 (pair) =>
                   breakdownFilter === "all" ||
                   !currentUser ||
+                  (breakdownFilter === "mine" && (pair.to === currentUser || pair.from === currentUser)) ||
                   (breakdownFilter === "to_me" && pair.to === currentUser) ||
                   (breakdownFilter === "from_me" && pair.from === currentUser),
               )
@@ -1222,6 +1256,7 @@ export default function SettlementTab({ currentUser }) {
             {breakdownFilter !== "all" &&
               expensesByPair.filter(
                 (pair) =>
+                  (breakdownFilter === "mine" && (pair.to === currentUser || pair.from === currentUser)) ||
                   (breakdownFilter === "to_me" && pair.to === currentUser) ||
                   (breakdownFilter === "from_me" && pair.from === currentUser),
               ).length === 0 && (
@@ -1235,7 +1270,9 @@ export default function SettlementTab({ currentUser }) {
                 >
                   {breakdownFilter === "to_me"
                     ? "No expenses owed to you."
-                    : "No expenses you owe."}
+                    : breakdownFilter === "from_me"
+                      ? "No expenses you owe."
+                      : "No expenses involving you."}
                 </div>
               )}
           </div>
