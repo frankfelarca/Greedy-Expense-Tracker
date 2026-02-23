@@ -1,0 +1,21 @@
+{
+  "name": "EL Yu 2026 - Trip Expense Tracker",
+  "short_name": "EL Yu 2026",
+  "description": "Track and split trip expenses among travelers",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0a14",
+  "theme_color": "#667eea",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

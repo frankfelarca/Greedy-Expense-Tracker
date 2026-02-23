@@ -1,0 +1,18 @@
+{
+  "rules": {
+    "allowed_tokens": {
+      ".read": false,
+      ".write": false
+    },
+    "trips": {
+      "$tripId": {
+        ".read": true,
+        ".write": true
+      }
+    },
+    "$other": {
+      ".read": false,
+      ".write": false
+    }
+  }
+}
