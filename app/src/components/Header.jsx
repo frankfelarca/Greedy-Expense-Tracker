@@ -37,7 +37,7 @@ export default function Header() {
           marginBottom: 10,
         }}
       >
-        Travel Expense Tracker
+        Pot of Greed
       </motion.h1>
       <motion.p
         initial={{ opacity: 0 }}
@@ -45,7 +45,7 @@ export default function Header() {
         transition={{ delay: 0.2 }}
         style={{ color: "var(--text2)", fontSize: "1.05rem", fontWeight: 300 }}
       >
-        Track, split, and settle expenses with your crew
+        Draw two cards... or just split the bill
       </motion.p>
     </header>
   );

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { motion, AnimatePresence } from 'framer-motion';
-import { setTripField, addTraveler, removeTraveler, clearAll } from '../store/tripSlice';
+import { setTripField, addTraveler, removeTraveler, clearAll, setExpenseLockDate } from '../store/tripSlice';
 import { toast } from '../store/toastSlice';
 import { useAdmin } from '../hooks/useAdmin';
 import { Card, CardTitle, Btn, FormGroup } from './UI';
@@ -11,6 +11,7 @@ import { db } from '../utils/firebase';
 import { CONTAINER } from '../utils/constants';
 import { writeToken, deactivateToken, reactivateToken, fetchTokens } from '../utils/sync';
 import { hashName } from '../utils/helpers';
+import { useCountdownTo } from '../hooks/useCountdownTo';
 
 const DATA_PATH = import.meta.env.VITE_FIREBASE_DATA_PATH || 'trips/default';
 
@@ -23,11 +24,14 @@ export default function TripInfo() {
   const travelers = useSelector(s => s.trip.travelers);
   const maxTravelers = useSelector(s => s.trip.maxTravelers) || 10;
   const syncConfig = useSelector(s => s.sync);
+  const expenseLockDate = useSelector(s => s.trip.expenseLockDate);
   const { isAdmin, requireAdmin, countdown, tryUnlock, doLock, isLockedOut, lockoutCountdown, showPasswordModal, handlePasswordSubmit, handlePasswordClose } = useAdmin();
   const [newName, setNewName] = useState('');
   const [collapsed, setCollapsed] = useState(true);
   const [errors, setErrors] = useState({});
   const [clearing, setClearing] = useState(false);
+  const [lockDraft, setLockDraft] = useState('');
+  const { countdown: lockCountdown } = useCountdownTo(expenseLockDate);
 
   const storeFields = { tripName, tripDestination, tripStart, tripEnd, maxTravelers };
   const [draft, setDraft] = useState({ ...storeFields });
@@ -457,6 +461,66 @@ export default function TripInfo() {
                     )}
                   </div>
                 </div>
+                {isAdmin && (
+                  <div style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
+                    <div style={{
+                      fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase',
+                      letterSpacing: 1, color: 'var(--text2)', marginBottom: 10, paddingLeft: 2,
+                    }}>
+                      {'\u{1F512}'} Expense Lock
+                    </div>
+                    {expenseLockDate ? (() => {
+                      const isLocked = new Date(expenseLockDate) <= new Date();
+                      return (
+                        <div style={{
+                          padding: '10px 14px', borderRadius: 10, marginBottom: 12,
+                          background: isLocked ? 'rgba(255,107,107,0.1)' : 'rgba(254,202,87,0.1)',
+                          border: `1px solid ${isLocked ? 'rgba(255,107,107,0.25)' : 'rgba(254,202,87,0.25)'}`,
+                          display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8,
+                        }}>
+                          <div>
+                            <div style={{ fontSize: '0.82rem', fontWeight: 700, color: isLocked ? 'var(--accent1)' : 'var(--accent2)' }}>
+                              {isLocked ? '\u{1F512} Expenses Locked' : '\u{1F552} Lock Scheduled'}
+                            </div>
+                            <div style={{ fontSize: '0.72rem', color: 'var(--text2)', marginTop: 2 }}>
+                              {isLocked ? 'Since' : 'Will lock on'}: {new Date(expenseLockDate).toLocaleString('en-PH', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                            </div>
+                            {!isLocked && lockCountdown && (
+                              <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--accent2)', marginTop: 4, fontVariantNumeric: 'tabular-nums' }}>
+                                Locks in {lockCountdown}
+                              </div>
+                            )}
+                          </div>
+                          <Btn small variant="ghost" onClick={() => { dispatch(setExpenseLockDate(null)); dispatch(toast('Expense lock removed.')); }}>
+                            {'\u{1F513}'} Unlock
+                          </Btn>
+                        </div>
+                      );
+                    })() : (
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                        <input
+                          type="datetime-local"
+                          value={lockDraft}
+                          onChange={e => setLockDraft(e.target.value)}
+                          style={{ flex: 1, minWidth: 180 }}
+                        />
+                        <Btn small variant="primary" onClick={() => {
+                          if (!lockDraft) { dispatch(toast('Pick a date and time.', 'error')); return; }
+                          dispatch(setExpenseLockDate(new Date(lockDraft).toISOString()));
+                          dispatch(toast('Expense lock set!'));
+                          setLockDraft('');
+                        }}>{'\u{1F512}'} Set Lock</Btn>
+                        <Btn small variant="danger" onClick={() => {
+                          dispatch(setExpenseLockDate(new Date().toISOString()));
+                          dispatch(toast('Expenses locked now!'));
+                        }}>{'\u{1F512}'} Lock Now</Btn>
+                      </div>
+                    )}
+                    <div style={{ fontSize: '0.68rem', color: 'var(--text2)', marginTop: 6 }}>
+                      When locked, users cannot add, edit, or delete expenses. Admins can still make changes.
+                    </div>
+                  </div>
+                )}
                 {isAdmin && (
                   <div style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
                     <Btn small variant="danger" onClick={handleClearAll} disabled={clearing}>

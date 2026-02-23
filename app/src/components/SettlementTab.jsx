@@ -1,23 +1,27 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { motion } from 'framer-motion';
-import { setQrCode, setPaymentInfo, markSettlementPaid, unmarkSettlementPaid, markExpensePaid, unmarkExpensePaid } from '../store/tripSlice';
+import { setQrCode, setPaymentInfo, markSettlementPaid, unmarkSettlementPaid, setProofOfPayment, removeProofOfPayment, declineProofOfPayment } from '../store/tripSlice';
 import { toast } from '../store/toastSlice';
 import { formatNum } from '../utils/helpers';
 import { computeBalances, computeSettlements } from '../utils/settlements';
 import { QR_TYPES, MAX_QR_SIZE, WALLET_TYPES } from '../utils/constants';
-import { uploadQrCode, deleteQrCode, getQrUrl } from '../utils/sync';
+import { uploadQrCode, deleteQrCode, getQrUrl, uploadProofOfPayment, deleteProofOfPayment, getProofUrl } from '../utils/sync';
 import { Card, CardTitle, Btn, Modal, Spinner } from './UI';
 
 
 export default function SettlementTab({ currentUser }) {
   const dispatch = useDispatch();
-  const { expenses, travelers, qrCodes = {}, paymentInfo = {}, paidSettlements = {}, paidExpenses = {}, dpCollections = [], hotelCostPerHead, hotelNights, hotelParkingSlots, hotelParkingCost } = useSelector(s => s.trip);
+  const { expenses, travelers, qrCodes = {}, paymentInfo = {}, paidSettlements = {}, excludedExpenses = {}, proofOfPayment = {}, dpCollections = [], hotelCostPerHead, hotelNights, hotelParkingSlots, hotelParkingCost } = useSelector(s => s.trip);
   const syncConfig = useSelector(s => s.sync);
   const [qrModal, setQrModal] = useState(null);
   const [qrWallet, setQrWallet] = useState(null);
   const [uploading, setUploading] = useState(null);
   const [uploadKey, setUploadKey] = useState(0);
+  const [proofUploading, setProofUploading] = useState(null);
+  const [proofModal, setProofModal] = useState(null);
+  const [declineModal, setDeclineModal] = useState(null);
+  const [declineReason, setDeclineReason] = useState('');
   const savedInfo = paymentInfo[currentUser] || { gcash: '', maya: '', maribank: '' };
   const [infoForm, setInfoForm] = useState({ gcash: savedInfo.gcash || '', maya: savedInfo.maya || '', maribank: savedInfo.maribank || '' });
   const [infoErrors, setInfoErrors] = useState({});
@@ -28,11 +32,7 @@ export default function SettlementTab({ currentUser }) {
   }, [savedInfo.gcash, savedInfo.maya, savedInfo.maribank]);
 
   const { balances } = useMemo(
-    () => computeBalances(expenses, travelers), [expenses, travelers]
-  );
-
-  const settlements = useMemo(
-    () => computeSettlements(balances), [balances]
+    () => computeBalances(expenses, travelers, null, excludedExpenses), [expenses, travelers, excludedExpenses]
   );
 
   const travelerNames = useMemo(() => new Set(travelers.map(t => t.name)), [travelers]);
@@ -69,6 +69,10 @@ export default function SettlementTab({ currentUser }) {
     return result;
   }, [activeDpCollections, travelers, hotelCost]);
 
+  const totalSettlements = useMemo(
+    () => computeSettlements(balances), [balances]
+  );
+
   const combinedSettlements = useMemo(() => {
     const netMap = {};
     const addFlow = (from, to, amount) => {
@@ -78,7 +82,7 @@ export default function SettlementTab({ currentUser }) {
       if (!netMap[k]) netMap[k] = { a, b, net: 0 };
       netMap[k].net += from === a ? amount : -amount;
     };
-    settlements.forEach(s => addFlow(s.from, s.to, s.amount));
+    totalSettlements.forEach(s => addFlow(s.from, s.to, s.amount));
     excessByCollector.forEach(e => {
       e.persons.forEach(p => {
         if (Math.abs(p.excess) > 0.01) addFlow(e.collector, p.person, p.excess);
@@ -91,7 +95,7 @@ export default function SettlementTab({ currentUser }) {
         to: v.net > 0 ? v.b : v.a,
         amount: Math.abs(v.net),
       }));
-  }, [settlements, excessByCollector]);
+  }, [totalSettlements, excessByCollector]);
 
   const sKey = (s) => `${s.from}__${s.to}`;
 
@@ -110,15 +114,6 @@ export default function SettlementTab({ currentUser }) {
     return Object.values(map);
   }, [expenses]);
 
-  const remainingByPair = useMemo(() => {
-    const map = {};
-    expensesByPair.forEach(pair => {
-      const k = `${pair.from}__${pair.to}`;
-      map[k] = pair.expenses.reduce((s, e) => s + (paidExpenses[e.id] ? 0 : e.owedAmount), 0);
-    });
-    return map;
-  }, [expensesByPair, paidExpenses]);
-
   const isUserSettlement = (s) => currentUser && (s.from === currentUser || s.to === currentUser);
   const userSettlements = combinedSettlements.filter(isUserSettlement);
   const otherSettlements = combinedSettlements.filter(s => !isUserSettlement(s));
@@ -134,6 +129,19 @@ export default function SettlementTab({ currentUser }) {
   }, [currentUser, combinedSettlements]);
   const userOwes = userCombinedBalance !== null && userCombinedBalance < -0.01;
 
+  const { settledToYou, settledByYou } = useMemo(() => {
+    if (!currentUser) return { settledToYou: 0, settledByYou: 0 };
+    let toYou = 0;
+    let byYou = 0;
+    combinedSettlements.forEach(s => {
+      const key = sKey(s);
+      if (!paidSettlements[key]) return;
+      if (s.to === currentUser) toYou += s.amount;
+      if (s.from === currentUser) byYou += s.amount;
+    });
+    return { settledToYou: toYou, settledByYou: byYou };
+  }, [currentUser, combinedSettlements, paidSettlements]);
+
   const userRemainingBalance = useMemo(() => {
     if (!currentUser) return null;
     let net = 0;
@@ -145,7 +153,20 @@ export default function SettlementTab({ currentUser }) {
     });
     return net;
   }, [currentUser, combinedSettlements, paidSettlements]);
-  const remainingDiffers = userRemainingBalance !== null && Math.abs(userRemainingBalance - userCombinedBalance) > 0.01;
+  const hasPaidSettlements = Object.keys(paidSettlements).length > 0;
+  const totalDiffers = hasPaidSettlements && Math.abs(userCombinedBalance - userRemainingBalance) > 0.01;
+
+  const userDpExcess = useMemo(() => {
+    if (!currentUser) return 0;
+    let net = 0;
+    excessByCollector.forEach(e => {
+      if (e.collector === currentUser) net -= e.totalExcess;
+      e.persons.forEach(p => {
+        if (p.person === currentUser) net += p.excess;
+      });
+    });
+    return net;
+  }, [currentUser, excessByCollector]);
 
   const getUserQr = (name) => {
     const q = qrCodes[name];
@@ -257,77 +278,52 @@ export default function SettlementTab({ currentUser }) {
     );
   };
 
-  const getSettlementExpenses = (s) => {
-    const exps = [];
-    expensesByPair.forEach(pair => {
-      if (pair.from === s.from && pair.to === s.to) exps.push(...pair.expenses);
-      else if (pair.from === s.to && pair.to === s.from) exps.push(...pair.expenses);
-    });
-    return exps;
-  };
-
-  const getPairExpenses = (key) => {
-    const pair = expensesByPair.find(p => `${p.from}__${p.to}` === key);
-    return pair ? pair.expenses : [];
-  };
-
   const handleToggleSettlement = (s) => {
     const key = sKey(s);
     const date = new Date().toISOString().slice(0, 10);
-    const allExps = getSettlementExpenses(s);
     if (paidSettlements[key]) {
       dispatch(unmarkSettlementPaid(key));
-      allExps.forEach(exp => dispatch(unmarkExpensePaid(exp.id)));
       dispatch(toast('Settlement unmarked.'));
     } else {
       dispatch(markSettlementPaid({ key, confirmedBy: currentUser, date }));
-      allExps.forEach(exp => {
-        if (!paidExpenses[exp.id]) dispatch(markExpensePaid({ expenseId: exp.id, confirmedBy: currentUser, date }));
-      });
       dispatch(toast('Settlement marked as paid!'));
     }
   };
 
-  const findSettlementForPair = (pairKey) => {
-    const [from, to] = pairKey.split('__');
-    return combinedSettlements.find(s =>
-      (s.from === from && s.to === to) || (s.from === to && s.to === from)
-    );
-  };
-
-  const handleToggleExpense = (expenseId, pairKey) => {
-    const date = new Date().toISOString().slice(0, 10);
-    const settlement = findSettlementForPair(pairKey);
-    const settlementKey = settlement ? sKey(settlement) : pairKey;
-    if (paidExpenses[expenseId]) {
-      dispatch(unmarkExpensePaid(expenseId));
-      if (paidSettlements[settlementKey]) dispatch(unmarkSettlementPaid(settlementKey));
-      dispatch(toast('Expense unmarked.'));
-    } else {
-      dispatch(markExpensePaid({ expenseId, confirmedBy: currentUser, date }));
-      if (settlement) {
-        const allExps = getSettlementExpenses(settlement);
-        const allPaid = allExps.every(e => e.id === expenseId || paidExpenses[e.id]);
-        if (allPaid) dispatch(markSettlementPaid({ key: settlementKey, confirmedBy: currentUser, date }));
+  const handleProofUpload = async (settlementKey, e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setProofUploading(settlementKey);
+    try {
+      const oldProof = proofOfPayment[settlementKey];
+      if (oldProof?.path) {
+        try { await deleteProofOfPayment(syncConfig, oldProof.path); } catch {}
       }
-      dispatch(toast('Expense marked as paid!'));
+      const blobPath = await uploadProofOfPayment(syncConfig, settlementKey, file);
+      dispatch(setProofOfPayment({ settlementKey, path: blobPath, uploadedBy: currentUser }));
+      dispatch(toast('Proof of payment uploaded!'));
+    } catch (err) {
+      dispatch(toast(err.message || 'Upload failed.', 'error'));
     }
+    setProofUploading(null);
   };
 
-  const handleMarkPairPaid = (pair) => {
-    const date = new Date().toISOString().slice(0, 10);
-    const pairKey = `${pair.from}__${pair.to}`;
-    pair.expenses.forEach(exp => {
-      if (!paidExpenses[exp.id]) dispatch(markExpensePaid({ expenseId: exp.id, confirmedBy: currentUser, date }));
-    });
-    const settlement = findSettlementForPair(pairKey);
-    if (settlement) {
-      const settlementKey = sKey(settlement);
-      const allExps = getSettlementExpenses(settlement);
-      const allPaid = allExps.every(e => pair.expenses.some(pe => pe.id === e.id) || paidExpenses[e.id]);
-      if (allPaid && !paidSettlements[settlementKey]) dispatch(markSettlementPaid({ key: settlementKey, confirmedBy: currentUser, date }));
+  const handleProofRemove = async (settlementKey) => {
+    const proof = proofOfPayment[settlementKey];
+    if (proof?.path) {
+      try { await deleteProofOfPayment(syncConfig, proof.path); } catch {}
     }
-    dispatch(toast(`All expenses from ${pair.from} marked as paid!`));
+    dispatch(removeProofOfPayment(settlementKey));
+    dispatch(toast('Proof removed.'));
+  };
+
+  const handleProofDecline = async (settlementKey, reason) => {
+    const proof = proofOfPayment[settlementKey];
+    if (proof?.path) {
+      try { await deleteProofOfPayment(syncConfig, proof.path); } catch {}
+    }
+    dispatch(declineProofOfPayment({ settlementKey, declinedBy: currentUser, reason }));
+    dispatch(toast('Proof declined.'));
   };
 
   const renderRow = (s, i, highlight) => {
@@ -336,6 +332,8 @@ export default function SettlementTab({ currentUser }) {
     const key = sKey(s);
     const paid = paidSettlements[key];
     const fullyPaid = paid;
+    const proof = proofOfPayment[key];
+    const proofUrl = proof?.path ? getProofUrl(syncConfig, proof.path) : null;
     return (
       <tr key={`${highlight ? 'u' : 'o'}-${i}`} style={{
         ...(highlight ? { background: 'rgba(84,160,255,0.08)' } : {}),
@@ -346,6 +344,52 @@ export default function SettlementTab({ currentUser }) {
         <td>{renderName(s.to, toIsUser, highlight && !toIsUser)}</td>
         <td style={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
           &#8369;{formatNum(s.amount)}
+        </td>
+        <td style={{ textAlign: 'center' }}>
+          {proofUrl ? (
+            <button
+              onClick={() => setProofModal({ key, url: proofUrl, settlement: s, paid: !!paid })}
+              style={{
+                background: 'rgba(84,160,255,0.1)', border: '1px solid rgba(84,160,255,0.25)',
+                borderRadius: 20, padding: '3px 10px', fontSize: '0.65rem', fontWeight: 700,
+                color: 'var(--accent5)', cursor: 'pointer', fontFamily: 'Inter, sans-serif',
+              }}
+            >&#128206; View Proof</button>
+          ) : proof?.status === 'declined' ? (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+              <span
+                title={proof.declineReason || ''}
+                style={{
+                  fontSize: '0.62rem', fontWeight: 700, color: 'var(--accent1)',
+                  background: 'rgba(255,107,107,0.12)', padding: '2px 8px', borderRadius: 12,
+                  cursor: proof.declineReason ? 'help' : 'default',
+                }}
+              >{'\u2718'} Declined{proof.declineReason ? `: ${proof.declineReason}` : ''}</span>
+              {fromIsUser && (
+                <label style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 4,
+                  background: 'var(--surface3)', border: '1px dashed rgba(255,107,107,0.4)',
+                  borderRadius: 20, padding: '3px 10px', fontSize: '0.62rem', fontWeight: 600,
+                  color: 'var(--accent1)', cursor: 'pointer', fontFamily: 'Inter, sans-serif',
+                }}>
+                  {proofUploading === key ? <><Spinner size={10} color="var(--accent1)" /> Uploading...</> : <>{'\u{1F4F7}'} Re-upload</>}
+                  <input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" onChange={e => handleProofUpload(key, e)} style={{ display: 'none' }} disabled={!!proofUploading} />
+                </label>
+              )}
+            </div>
+          ) : fromIsUser ? (
+            <label style={{
+              display: 'inline-flex', alignItems: 'center', gap: 4,
+              background: 'var(--surface3)', border: '1px dashed var(--border)',
+              borderRadius: 20, padding: '3px 10px', fontSize: '0.65rem', fontWeight: 600,
+              color: 'var(--text2)', cursor: 'pointer', fontFamily: 'Inter, sans-serif',
+            }}>
+              {proofUploading === key ? <><Spinner size={10} color="var(--text2)" /> Uploading...</> : <>{'\u{1F4F7}'} Upload Proof</>}
+              <input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" onChange={e => handleProofUpload(key, e)} style={{ display: 'none' }} disabled={!!proofUploading} />
+            </label>
+          ) : (
+            <span style={{ fontSize: '0.65rem', color: 'var(--text2)' }}>&mdash;</span>
+          )}
         </td>
         <td style={{ textAlign: 'center' }}>
           {paid ? (
@@ -389,17 +433,34 @@ export default function SettlementTab({ currentUser }) {
       {currentUser && userCombinedBalance !== null && (Math.abs(userCombinedBalance) > 0.01) && (
         <div style={{
           padding: '12px 18px', borderRadius: 12, marginBottom: 16,
-          background: userOwes ? 'rgba(255,107,107,0.1)' : 'rgba(67,233,123,0.1)',
-          border: `1px solid ${userOwes ? 'rgba(255,107,107,0.25)' : 'rgba(67,233,123,0.25)'}`,
-          fontSize: '0.88rem', fontWeight: 600,
-          color: userOwes ? 'var(--accent1)' : 'var(--green)',
+          background: Math.abs(userRemainingBalance) < 0.01 ? 'rgba(67,233,123,0.1)' : userOwes ? 'rgba(255,107,107,0.1)' : 'rgba(67,233,123,0.1)',
+          border: `1px solid ${Math.abs(userRemainingBalance) < 0.01 ? 'rgba(67,233,123,0.25)' : userOwes ? 'rgba(255,107,107,0.25)' : 'rgba(67,233,123,0.25)'}`,
+          fontSize: '0.95rem', fontWeight: 700,
+          color: Math.abs(userRemainingBalance) < 0.01 ? 'var(--green)' : userOwes ? 'var(--accent1)' : 'var(--green)',
         }}>
-          <div>{userOwes
-            ? `You owe a total of \u20B1${formatNum(-userCombinedBalance)}`
-            : `You are owed a total of \u20B1${formatNum(userCombinedBalance)}`}</div>
-          {remainingDiffers && (
-            <div style={{ marginTop: 4, fontSize: '0.82rem', fontWeight: 700 }}>
-              {Math.abs(userRemainingBalance) < 0.01 ? '\u2714 All settled!' : `Remaining: \u20B1${formatNum(Math.abs(userRemainingBalance))}`}
+          <div>{Math.abs(userRemainingBalance) < 0.01
+            ? '\u2714 All settled!'
+            : userOwes
+              ? `Remaining balance: \u20B1${formatNum(Math.abs(userRemainingBalance))}`
+              : `Remaining receivable: \u20B1${formatNum(Math.abs(userRemainingBalance))}`}</div>
+          {totalDiffers && (
+            <div style={{ marginTop: 4, fontSize: '0.75rem', fontWeight: 500, color: 'var(--text2)' }}>
+              Original balance: {'\u20B1'}{formatNum(Math.abs(userCombinedBalance))}
+            </div>
+          )}
+          {settledToYou > 0.01 && (
+            <div style={{ marginTop: 4, fontSize: '0.75rem', fontWeight: 600, color: 'var(--green)' }}>
+              Settled to you: {'\u20B1'}{formatNum(settledToYou)}
+            </div>
+          )}
+          {settledByYou > 0.01 && (
+            <div style={{ marginTop: 4, fontSize: '0.75rem', fontWeight: 600, color: 'var(--accent5)' }}>
+              Settled by you: {'\u20B1'}{formatNum(settledByYou)}
+            </div>
+          )}
+          {Math.abs(userDpExcess) > 0.01 && (
+            <div style={{ marginTop: 4, fontSize: '0.75rem', fontWeight: 600, color: userDpExcess > 0 ? 'var(--green)' : 'var(--accent1)' }}>
+              {userDpExcess > 0 ? 'Excess Downpayment Refund' : 'DP Return'}: {'\u20B1'}{formatNum(Math.abs(userDpExcess))}
             </div>
           )}
         </div>
@@ -415,23 +476,12 @@ export default function SettlementTab({ currentUser }) {
           </div>
           <div style={{ overflowX: 'auto', borderRadius: 12, border: '1px solid var(--accent5)', borderColor: 'rgba(84,160,255,0.3)' }}>
             <table>
-              <thead><tr><th>From</th><th></th><th>To</th><th>Amount</th><th>Status</th></tr></thead>
+              <thead><tr><th>From</th><th></th><th>To</th><th>Amount</th><th>Proof</th><th>Status</th></tr></thead>
               <tbody>
                 {userSettlements.map((s, i) => renderRow(s, i, true))}
               </tbody>
             </table>
           </div>
-          {remainingDiffers && (
-            <div style={{
-              marginTop: 8, padding: '8px 14px', borderRadius: 10,
-              background: Math.abs(userRemainingBalance) < 0.01 ? 'rgba(67,233,123,0.08)' : 'rgba(84,160,255,0.06)',
-              border: `1px solid ${Math.abs(userRemainingBalance) < 0.01 ? 'rgba(67,233,123,0.2)' : 'rgba(84,160,255,0.15)'}`,
-              fontSize: '0.82rem', fontWeight: 600,
-              color: Math.abs(userRemainingBalance) < 0.01 ? 'var(--green)' : 'var(--accent5)',
-            }}>
-              {Math.abs(userRemainingBalance) < 0.01 ? '\u2714 All settled!' : `Remaining: \u20B1${formatNum(Math.abs(userRemainingBalance))}`}
-            </div>
-          )}
         </div>
       )}
 
@@ -447,7 +497,7 @@ export default function SettlementTab({ currentUser }) {
           )}
           <div style={{ overflowX: 'auto', borderRadius: 12, border: '1px solid var(--border)' }}>
             <table>
-              <thead><tr><th>From</th><th></th><th>To</th><th>Amount</th><th>Status</th></tr></thead>
+              <thead><tr><th>From</th><th></th><th>To</th><th>Amount</th><th>Proof</th><th>Status</th></tr></thead>
               <tbody>
                 {otherSettlements.map((s, i) => renderRow(s, i, false))}
               </tbody>
@@ -473,85 +523,31 @@ export default function SettlementTab({ currentUser }) {
           {expensesByPair.map((pair, pi) => {
             const fromIsUser = currentUser && pair.from === currentUser;
             const toIsUser = currentUser && pair.to === currentUser;
-            const unpaidCount = pair.expenses.filter(e => !paidExpenses[e.id]).length;
-            const pairKey = `${pair.from}__${pair.to}`;
+            const pairTotal = pair.expenses.reduce((s, e) => s + e.owedAmount, 0);
             return (
               <div key={pi} style={{ marginBottom: 14 }}>
                 <div style={{
                   fontSize: '0.75rem', fontWeight: 700, letterSpacing: 0.5, marginBottom: 6, paddingLeft: 2,
                   color: (fromIsUser || toIsUser) ? 'var(--accent5)' : 'var(--text)',
-                  display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8,
                 }}>
-                  <span>
-                    {pair.from}{fromIsUser ? ' (You)' : ''} &rarr; {pair.to}{toIsUser ? ' (You)' : ''}
-                    <span style={{ fontWeight: 500, color: 'var(--text2)', marginLeft: 8 }}>
-                      &mdash; &#8369;{formatNum(remainingByPair[pairKey] ?? 0)}
-                      {(remainingByPair[pairKey] ?? 0) < pair.expenses.reduce((s, e) => s + e.owedAmount, 0) - 0.01 && (
-                        <span style={{ marginLeft: 4 }}>/ &#8369;{formatNum(pair.expenses.reduce((s, e) => s + e.owedAmount, 0))}</span>
-                      )}
-                    </span>
+                  {pair.from}{fromIsUser ? ' (You)' : ''} &rarr; {pair.to}{toIsUser ? ' (You)' : ''}
+                  <span style={{ fontWeight: 500, color: 'var(--text2)', marginLeft: 8 }}>
+                    &mdash; &#8369;{formatNum(pairTotal)}
                   </span>
-                  {toIsUser && unpaidCount > 1 && (
-                    <motion.button
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.93 }}
-                      onClick={() => handleMarkPairPaid(pair)}
-                      style={{
-                        background: 'var(--gradient4)', border: 'none', borderRadius: 20,
-                        padding: '3px 10px', fontSize: '0.62rem', fontWeight: 700,
-                        color: '#1a1a2e', cursor: 'pointer', fontFamily: 'Inter, sans-serif',
-                        letterSpacing: 0.5, textTransform: 'uppercase',
-                      }}
-                    >Mark All Paid</motion.button>
-                  )}
                 </div>
                 <div style={{ overflowX: 'auto', borderRadius: 10, border: `1px solid ${(fromIsUser || toIsUser) ? 'rgba(84,160,255,0.3)' : 'var(--border)'}` }}>
                   <table>
-                    <thead><tr><th>Date</th><th>Description</th><th>Owed</th><th style={{ textAlign: 'center' }}>Status</th></tr></thead>
+                    <thead><tr><th>Date</th><th>Description</th><th>Owed</th></tr></thead>
                     <tbody>
-                      {pair.expenses.map(exp => {
-                        const expPaid = paidExpenses[exp.id];
-                        return (
-                          <tr key={exp.id} style={{
-                            ...((fromIsUser || toIsUser) ? { background: 'rgba(84,160,255,0.05)' } : {}),
-                            ...(expPaid ? { opacity: 0.55 } : {}),
-                          }}>
-                            <td style={{ fontSize: '0.82rem' }}>{exp.date}</td>
-                            <td style={{ fontSize: '0.82rem' }}>{exp.description}</td>
-                            <td style={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>&#8369;{formatNum(exp.owedAmount)}</td>
-                            <td style={{ textAlign: 'center' }}>
-                              {expPaid ? (
-                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                                  <span style={{
-                                    fontSize: '0.68rem', fontWeight: 700, color: 'var(--green)',
-                                    background: 'rgba(67,233,123,0.12)', padding: '3px 10px', borderRadius: 20,
-                                  }}>&#10003; Paid</span>
-                                  {toIsUser && (
-                                    <button onClick={() => handleToggleExpense(exp.id, pairKey)} style={{
-                                      background: 'none', border: 'none', cursor: 'pointer',
-                                      fontSize: '0.65rem', color: 'var(--text2)', textDecoration: 'underline',
-                                      fontFamily: 'Inter, sans-serif', padding: 0,
-                                    }}>Undo</button>
-                                  )}
-                                </span>
-                              ) : toIsUser ? (
-                                <motion.button
-                                  whileHover={{ scale: 1.05 }}
-                                  whileTap={{ scale: 0.93 }}
-                                  onClick={() => handleToggleExpense(exp.id, pairKey)}
-                                  style={{
-                                    background: 'var(--gradient4)', border: 'none', borderRadius: 20,
-                                    padding: '4px 12px', fontSize: '0.68rem', fontWeight: 700,
-                                    color: '#1a1a2e', cursor: 'pointer', fontFamily: 'Inter, sans-serif',
-                                  }}
-                                >Confirm Paid</motion.button>
-                              ) : (
-                                <span style={{ fontSize: '0.68rem', color: 'var(--text2)' }}>&mdash;</span>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
+                      {pair.expenses.map(exp => (
+                        <tr key={exp.id} style={{
+                          ...((fromIsUser || toIsUser) ? { background: 'rgba(84,160,255,0.05)' } : {}),
+                        }}>
+                          <td style={{ fontSize: '0.82rem' }}>{exp.date}</td>
+                          <td style={{ fontSize: '0.82rem' }}>{exp.description}</td>
+                          <td style={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>&#8369;{formatNum(exp.owedAmount)}</td>
+                        </tr>
+                      ))}
                     </tbody>
                   </table>
                 </div>
@@ -858,6 +854,114 @@ export default function SettlementTab({ currentUser }) {
         );
       })()}
     </Modal>
+
+    <Modal open={!!proofModal} onClose={() => setProofModal(null)}>
+      {proofModal && (() => {
+        const { key, url, settlement } = proofModal;
+        const fromIsUser = currentUser && settlement.from === currentUser;
+        const toIsUser = currentUser && settlement.to === currentUser;
+        const proof = proofOfPayment[key];
+        const isPdf = url && /\.pdf/i.test(url);
+        return (
+          <>
+            <h3 style={{ color: 'var(--accent5)', marginBottom: 12 }}>&#128206; Proof of Payment</h3>
+            <div style={{
+              fontSize: '0.82rem', color: 'var(--text2)', marginBottom: 14,
+              padding: '8px 12px', borderRadius: 10, background: 'var(--surface2)',
+              border: '1px solid var(--border)', textAlign: 'center',
+            }}>
+              <span style={{ fontWeight: 600, color: 'var(--text)' }}>{settlement.from}</span>
+              {' '}&rarr;{' '}
+              <span style={{ fontWeight: 600, color: 'var(--text)' }}>{settlement.to}</span>
+              {' '}&mdash;{' '}
+              <span style={{ fontWeight: 700 }}>&#8369;{formatNum(settlement.amount)}</span>
+            </div>
+            <div style={{ textAlign: 'center' }}>
+              {isPdf ? (
+                <iframe src={url} style={{ width: '80vw', maxWidth: 600, height: '60vh', border: 'none', borderRadius: 10 }} />
+              ) : (
+                <img src={url} alt="Proof of payment" style={{ maxWidth: '100%', maxHeight: '60vh', borderRadius: 10, border: '1px solid var(--border)' }} />
+              )}
+            </div>
+            {proof?.uploadedBy && (
+              <div style={{ fontSize: '0.7rem', color: 'var(--text2)', textAlign: 'center', marginTop: 8 }}>
+                Uploaded by {proof.uploadedBy}{proof.at ? ` on ${proof.at.slice(0, 10)}` : ''}
+              </div>
+            )}
+            <div style={{ display: 'flex', justifyContent: 'center', gap: 10, marginTop: 14, flexWrap: 'wrap' }}>
+              <Btn small variant="primary" onClick={async () => {
+                try {
+                  const res = await fetch(url);
+                  const blob = await res.blob();
+                  const a = document.createElement('a');
+                  a.href = URL.createObjectURL(blob);
+                  a.download = `proof_${key}.${blob.type.split('/')[1] || 'jpg'}`;
+                  a.click();
+                  URL.revokeObjectURL(a.href);
+                } catch { dispatch(toast('Download failed.', 'error')); }
+              }}>{'\u{2B07}'} Download</Btn>
+              {fromIsUser && !proofModal.paid && (
+                <>
+                  <label style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 6,
+                    background: 'var(--surface3)', border: '1px solid var(--border)', borderRadius: 8,
+                    padding: '6px 14px', fontSize: '0.78rem', fontWeight: 600,
+                    color: 'var(--accent5)', cursor: 'pointer', fontFamily: 'Inter, sans-serif',
+                  }}>
+                    {proofUploading === key ? <><Spinner size={12} color="var(--accent5)" /> Replacing...</> : <>{'\u{1F504}'} Replace</>}
+                    <input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" onChange={e => { handleProofUpload(key, e); setProofModal(null); }} style={{ display: 'none' }} disabled={!!proofUploading} />
+                  </label>
+                  <Btn small variant="danger" onClick={() => { handleProofRemove(key); setProofModal(null); }}>{'\u{1F5D1}'} Remove</Btn>
+                </>
+              )}
+              {toIsUser && !proofModal.paid && (
+                <Btn small variant="danger" onClick={() => { setProofModal(null); setDeclineModal({ key, settlement }); setDeclineReason(''); }}>{'\u2718'} Decline</Btn>
+              )}
+              <Btn small variant="ghost" onClick={() => setProofModal(null)}>Close</Btn>
+            </div>
+          </>
+        );
+      })()}
+    </Modal>
+
+    {declineModal && (
+      <div onClick={() => setDeclineModal(null)} style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+        <div onClick={e => e.stopPropagation()} style={{ background: 'var(--surface)', borderRadius: 14, padding: 24, maxWidth: 400, width: '100%', boxShadow: '0 8px 32px rgba(0,0,0,0.3)' }}>
+          <div style={{ fontSize: '0.95rem', fontWeight: 700, marginBottom: 12, color: 'var(--accent1)' }}>{'\u2718'} Decline Proof of Payment</div>
+          <div style={{
+            fontSize: '0.78rem', color: 'var(--text2)', marginBottom: 12,
+            padding: '8px 12px', borderRadius: 10, background: 'var(--surface2)',
+            border: '1px solid var(--border)',
+          }}>
+            <span style={{ fontWeight: 600, color: 'var(--text)' }}>{declineModal.settlement.from}</span>
+            {' '}&rarr;{' '}
+            <span style={{ fontWeight: 600, color: 'var(--text)' }}>{declineModal.settlement.to}</span>
+            {' '}&mdash;{' '}
+            <span style={{ fontWeight: 700 }}>&#8369;{formatNum(declineModal.settlement.amount)}</span>
+          </div>
+          <div style={{ fontSize: '0.78rem', color: 'var(--text2)', marginBottom: 8 }}>Provide a reason for declining this proof:</div>
+          <textarea
+            value={declineReason}
+            onChange={e => setDeclineReason(e.target.value)}
+            placeholder="e.g. Wrong amount, blurry screenshot, wrong recipient..."
+            rows={3}
+            style={{ width: '100%', boxSizing: 'border-box', background: 'var(--surface3)', border: '1px solid var(--border)', borderRadius: 8, padding: 10, fontSize: '0.85rem', resize: 'vertical', fontFamily: 'Inter, sans-serif', color: 'var(--text)' }}
+            autoFocus
+          />
+          <div style={{ display: 'flex', gap: 8, marginTop: 14, justifyContent: 'flex-end' }}>
+            <button onClick={() => setDeclineModal(null)} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text2)', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>Cancel</button>
+            <button
+              onClick={() => {
+                if (!declineReason.trim()) { dispatch(toast('Please add a reason.', 'error')); return; }
+                handleProofDecline(declineModal.key, declineReason.trim());
+                setDeclineModal(null);
+              }}
+              style={{ padding: '8px 16px', borderRadius: 8, border: 'none', background: 'var(--accent1)', color: 'white', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}
+            >Decline Proof</button>
+          </div>
+        </div>
+      </div>
+    )}
     </>
   );
 }

@@ -78,6 +78,66 @@ describe('computeBalances', () => {
     expect(balances).toHaveLength(3);
     expect(balances.map(b => b.name)).toEqual(['Alice', 'Bob', 'Charlie']);
   });
+
+  it('excludes paid expenses from balance calculation', () => {
+    const expenses = [
+      { id: 'e1', amount: 300, paidBy: 'Alice', splitAmong: ['Alice', 'Bob', 'Charlie'] },
+      { id: 'e2', amount: 150, paidBy: 'Bob', splitAmong: ['Alice', 'Bob', 'Charlie'] },
+    ];
+    const paidExpenses = { e1: { confirmedBy: 'Alice', date: '2025-01-01' } };
+    const { personPaid, balances } = computeBalances(expenses, travelers, paidExpenses);
+    expect(personPaid['Alice']).toBe(0);
+    expect(personPaid['Bob']).toBe(150);
+    const bob = balances.find(b => b.name === 'Bob');
+    expect(bob.balance).toBe(100);
+  });
+
+  it('returns zero balances when all expenses are paid', () => {
+    const expenses = [
+      { id: 'e1', amount: 300, paidBy: 'Alice', splitAmong: ['Alice', 'Bob', 'Charlie'] },
+    ];
+    const paidExpenses = { e1: { confirmedBy: 'Bob', date: '2025-01-01' } };
+    const { balances } = computeBalances(expenses, travelers, paidExpenses);
+    balances.forEach(b => {
+      expect(b.paid).toBe(0);
+      expect(b.share).toBe(0);
+      expect(b.balance).toBe(0);
+    });
+  });
+
+  it('works the same as before when paidExpenses is not provided', () => {
+    const expenses = [{ id: 'e1', amount: 300, paidBy: 'Alice', splitAmong: ['Alice', 'Bob', 'Charlie'] }];
+    const withoutPaid = computeBalances(expenses, travelers);
+    const withEmptyPaid = computeBalances(expenses, travelers, {});
+    expect(withoutPaid.balances).toEqual(withEmptyPaid.balances);
+  });
+
+  it('excludes expenses marked in excludedExpenses', () => {
+    const expenses = [
+      { id: 'e1', amount: 300, paidBy: 'Alice', splitAmong: ['Alice', 'Bob', 'Charlie'] },
+      { id: 'e2', amount: 150, paidBy: 'Bob', splitAmong: ['Alice', 'Bob', 'Charlie'] },
+    ];
+    const excludedExpenses = { e1: { excludedBy: 'Admin', at: '2026-01-01' } };
+    const { personPaid, balances } = computeBalances(expenses, travelers, null, excludedExpenses);
+    expect(personPaid['Alice']).toBe(0);
+    expect(personPaid['Bob']).toBe(150);
+    const bob = balances.find(b => b.name === 'Bob');
+    expect(bob.balance).toBe(100);
+  });
+
+  it('excludes both paid and excluded expenses independently', () => {
+    const expenses = [
+      { id: 'e1', amount: 300, paidBy: 'Alice', splitAmong: ['Alice', 'Bob', 'Charlie'] },
+      { id: 'e2', amount: 150, paidBy: 'Bob', splitAmong: ['Alice', 'Bob', 'Charlie'] },
+      { id: 'e3', amount: 90, paidBy: 'Charlie', splitAmong: ['Alice', 'Bob', 'Charlie'] },
+    ];
+    const paidExpenses = { e1: { confirmedBy: 'Bob' } };
+    const excludedExpenses = { e2: { excludedBy: 'Admin' } };
+    const { personPaid } = computeBalances(expenses, travelers, paidExpenses, excludedExpenses);
+    expect(personPaid['Alice']).toBe(0);
+    expect(personPaid['Bob']).toBe(0);
+    expect(personPaid['Charlie']).toBe(90);
+  });
 });
 
 describe('computeSettlements', () => {

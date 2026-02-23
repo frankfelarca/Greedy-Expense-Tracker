@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
-import { deleteExpense, restoreExpense, updateExpense } from '../store/tripSlice';
+import { deleteExpense, restoreExpense, updateExpense, excludeExpense, includeExpense } from '../store/tripSlice';
 import { toast } from '../store/toastSlice';
 import { CAT_LABELS, PAYMENT_LABELS, CAT_OPTIONS, PAYMENT_OPTIONS, CAT_ICONS, PAYMENT_ICONS } from '../utils/constants';
 import { formatNum } from '../utils/helpers';
@@ -272,6 +272,7 @@ function EditModal({ exp, onClose, currentUser }) {
 export default function ExpenseTable({ currentUser }) {
   const dispatch = useDispatch();
   const expenses = useSelector(s => s.trip.expenses);
+  const excludedExpenses = useSelector(s => s.trip.excludedExpenses) || {};
   const travelers = useSelector(s => s.trip.travelers);
   const tripName = useSelector(s => s.trip.tripName);
   const [filterCat, setFilterCat] = useState('');
@@ -281,12 +282,16 @@ export default function ExpenseTable({ currentUser }) {
   const [filterDateTo, setFilterDateTo] = useState('');
   const [filtersOpen, setFiltersOpen] = useState(false);
   const syncConfig = useSelector(s => s.sync);
+  const expenseLockDate = useSelector(s => s.trip.expenseLockDate);
   const { isAdmin, requireAdmin } = useAdmin();
+  const isExpenseLocked = expenseLockDate && new Date(expenseLockDate) <= new Date() && !isAdmin;
   const [selected, setSelected] = useState([]);
   const [sortCol, setSortCol] = useState(null);
   const [sortDir, setSortDir] = useState('asc');
   const [receiptModal, setReceiptModal] = useState(null);
   const [editModal, setEditModal] = useState(null);
+  const [excludeModal, setExcludeModal] = useState(null);
+  const [excludeNote, setExcludeNote] = useState('');
   const [pageSize, setPageSize] = useState(25);
   const deletedRef = useRef({});
 
@@ -352,7 +357,7 @@ export default function ExpenseTable({ currentUser }) {
     setSelected(allSelected ? selected.filter(id => !allIds.includes(id)) : [...new Set([...selected, ...allIds])]);
   };
 
-  const canModify = (exp) => isAdmin || (currentUser && exp.loggedBy === currentUser);
+  const canModify = (exp) => !isExpenseLocked && (isAdmin || (currentUser && exp.loggedBy === currentUser));
 
   const handleDeleteSelected = () => {
     requireAdmin(() => {
@@ -368,11 +373,13 @@ export default function ExpenseTable({ currentUser }) {
   };
 
   const handleEdit = (exp) => {
+    if (isExpenseLocked) { dispatch(toast('Expenses are locked for settlement.', 'error')); return; }
     if (!canModify(exp)) { dispatch(toast('Only the person who logged this can edit it.', 'error')); return; }
     setEditModal(exp);
   };
 
   const handleDelete = (exp) => {
+    if (isExpenseLocked) { dispatch(toast('Expenses are locked for settlement.', 'error')); return; }
     if (!canModify(exp)) { dispatch(toast('Only the person who logged this can delete it.', 'error')); return; }
     if (!confirm('Delete this expense?')) return;
     const undoId = crypto.randomUUID();
@@ -593,7 +600,7 @@ export default function ExpenseTable({ currentUser }) {
           <tbody>
             {filtered.slice(0, pageSize).map((exp, fi) => {
               return (
-                <tr key={exp.id || fi} style={{ background: selected.includes(exp.id) ? 'rgba(255,107,107,0.08)' : undefined }}>
+                <tr key={exp.id || fi} style={{ background: selected.includes(exp.id) ? 'rgba(255,107,107,0.08)' : undefined, ...(excludedExpenses[exp.id] ? { opacity: 0.45 } : {}) }}>
                   {isAdmin && (
                     <td className="no-print" data-label="">
                       <input type="checkbox" checked={selected.includes(exp.id)} onChange={() => toggleSelect(exp.id)} style={{ width: 16, height: 16, cursor: 'pointer' }} aria-label={`Select ${exp.description}`} />
@@ -603,7 +610,8 @@ export default function ExpenseTable({ currentUser }) {
                   <td data-label="Date">{exp.date}</td>
                   <td data-label="Category"><Badge style={catStyles[exp.category]}>{CAT_ICONS[exp.category]} {CAT_LABELS[exp.category]}</Badge></td>
                   <td data-label="Description">
-                    <span>{exp.description}</span>
+                    <span style={excludedExpenses[exp.id] ? { textDecoration: 'line-through' } : undefined}>{exp.description}</span>
+                    {excludedExpenses[exp.id] && <span title={excludedExpenses[exp.id].note || ''} style={{ marginLeft: 6, fontSize: '0.6rem', fontWeight: 700, color: 'var(--accent1)', background: 'rgba(255,107,107,0.12)', padding: '1px 6px', borderRadius: 8, textTransform: 'uppercase', letterSpacing: 0.5, cursor: 'help' }}>Excluded{excludedExpenses[exp.id].note ? `: ${excludedExpenses[exp.id].note}` : ''}</span>}
                   </td>
                   <td data-label="Amount" style={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums', fontSize: '0.95rem' }}>&#8369;{formatNum(exp.amount)}</td>
                   <td data-label="Paid By">{exp.paidBy}</td>
@@ -665,14 +673,22 @@ export default function ExpenseTable({ currentUser }) {
                     {exp.loggedAt && <div style={{ fontSize: '0.65rem', color: 'var(--text2)', marginTop: 2 }}>{new Date(exp.loggedAt).toLocaleString('en-PH', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>}
                   </td>
                   <td className="no-print" data-label="Actions">
-                    {canModify(exp) ? (
-                      <div style={{ display: 'flex', gap: 4 }}>
-                        <button onClick={() => handleEdit(exp)} title="Edit" style={{ width: 28, height: 28, borderRadius: 7, border: '1px solid rgba(84,160,255,0.25)', background: 'rgba(84,160,255,0.1)', color: 'var(--accent5)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.78rem', padding: 0, transition: 'all 0.15s' }}>&#9998;</button>
-                        <button onClick={() => handleDelete(exp)} title="Delete" style={{ width: 28, height: 28, borderRadius: 7, border: '1px solid rgba(255,107,107,0.25)', background: 'rgba(255,107,107,0.1)', color: 'var(--accent1)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.78rem', padding: 0, transition: 'all 0.15s' }}>&#128465;</button>
-                      </div>
-                    ) : (
-                      <span style={{ color: 'var(--text2)', fontSize: '0.75rem' }}>&mdash;</span>
-                    )}
+                    <div style={{ display: 'flex', gap: 4 }}>
+                      {canModify(exp) && (
+                        <>
+                          <button onClick={() => handleEdit(exp)} title="Edit" style={{ width: 28, height: 28, borderRadius: 7, border: '1px solid rgba(84,160,255,0.25)', background: 'rgba(84,160,255,0.1)', color: 'var(--accent5)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.78rem', padding: 0, transition: 'all 0.15s' }}>&#9998;</button>
+                          <button onClick={() => handleDelete(exp)} title="Delete" style={{ width: 28, height: 28, borderRadius: 7, border: '1px solid rgba(255,107,107,0.25)', background: 'rgba(255,107,107,0.1)', color: 'var(--accent1)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.78rem', padding: 0, transition: 'all 0.15s' }}>&#128465;</button>
+                        </>
+                      )}
+                      {isAdmin && (
+                        <button
+                          onClick={() => excludedExpenses[exp.id] ? dispatch(includeExpense(exp.id)) : requireAdmin(() => { setExcludeModal(exp.id); setExcludeNote(''); })}
+                          title={excludedExpenses[exp.id] ? 'Include in settlements' : 'Exclude from settlements'}
+                          style={{ width: 28, height: 28, borderRadius: 7, border: `1px solid ${excludedExpenses[exp.id] ? 'rgba(67,233,123,0.3)' : 'rgba(255,159,243,0.3)'}`, background: excludedExpenses[exp.id] ? 'rgba(67,233,123,0.1)' : 'rgba(255,159,243,0.1)', color: excludedExpenses[exp.id] ? 'var(--green)' : 'var(--accent4)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.78rem', padding: 0, transition: 'all 0.15s' }}
+                        >{excludedExpenses[exp.id] ? '\u2714' : '\u2298'}</button>
+                      )}
+                      {!canModify(exp) && !isAdmin && <span style={{ color: 'var(--text2)', fontSize: '0.75rem' }}>&mdash;</span>}
+                    </div>
                   </td>
                 </tr>
               );
@@ -767,6 +783,34 @@ export default function ExpenseTable({ currentUser }) {
         </div>
       )}
       {editModal && <EditModal exp={editModal} onClose={() => setEditModal(null)} currentUser={currentUser} />}
+      {excludeModal && (
+        <div onClick={() => setExcludeModal(null)} style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: 'var(--surface)', borderRadius: 14, padding: 24, maxWidth: 400, width: '100%', boxShadow: '0 8px 32px rgba(0,0,0,0.3)' }}>
+            <div style={{ fontSize: '0.95rem', fontWeight: 700, marginBottom: 12, color: 'var(--accent4)' }}>Exclude from Settlements</div>
+            <div style={{ fontSize: '0.78rem', color: 'var(--text2)', marginBottom: 12 }}>Provide a reason for excluding this expense:</div>
+            <textarea
+              value={excludeNote}
+              onChange={e => setExcludeNote(e.target.value)}
+              placeholder="e.g. Duplicate entry, personal expense, etc."
+              rows={3}
+              style={{ width: '100%', boxSizing: 'border-box', background: 'var(--surface3)', border: '1px solid var(--border)', borderRadius: 8, padding: 10, fontSize: '0.85rem', resize: 'vertical', fontFamily: 'Inter, sans-serif', color: 'var(--text)' }}
+              autoFocus
+            />
+            <div style={{ display: 'flex', gap: 8, marginTop: 14, justifyContent: 'flex-end' }}>
+              <button onClick={() => setExcludeModal(null)} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text2)', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>Cancel</button>
+              <button
+                onClick={() => {
+                  if (!excludeNote.trim()) { dispatch(toast('Please add a note.', 'error')); return; }
+                  dispatch(excludeExpense({ expenseId: excludeModal, excludedBy: currentUser, note: excludeNote.trim() }));
+                  dispatch(toast('Expense excluded from settlements.'));
+                  setExcludeModal(null);
+                }}
+                style={{ padding: '8px 16px', borderRadius: 8, border: 'none', background: 'var(--accent4)', color: 'white', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}
+              >Exclude</button>
+            </div>
+          </div>
+        </div>
+      )}
     </Card>
   );
 }

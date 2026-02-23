@@ -102,6 +102,32 @@ export async function deleteQrCode(config, blobPath) {
   if (!resp.ok && resp.status !== 404) throw new Error(`QR delete failed: ${resp.status}`);
 }
 
+export async function uploadProofOfPayment(config, settlementKey, file) {
+  if (file.size > 10 * 1024 * 1024) throw new Error('File too large. Maximum size is 10MB.');
+  if (!ALLOWED_TYPES.includes(file.type)) throw new Error('Invalid file type. Only images and PDFs are allowed.');
+  const safeKey = settlementKey.replace(/[^a-zA-Z0-9_-]/g, '_');
+  const ext = (file.name.split('.').pop() || 'png').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const blobPath = `proofs/${safeKey}.${ext}`;
+  const resp = await fetch(getBlobUrl(config, blobPath), {
+    method: 'PUT',
+    headers: { 'x-ms-blob-type': 'BlockBlob', 'Content-Type': file.type },
+    body: file,
+  });
+  if (!resp.ok) throw new Error(`Proof upload failed: ${resp.status}`);
+  return blobPath;
+}
+
+export async function deleteProofOfPayment(config, blobPath) {
+  if (!blobPath || !config.account || !config.sasToken) return;
+  const resp = await fetch(getBlobUrl(config, blobPath), { method: 'DELETE' });
+  if (!resp.ok && resp.status !== 404) throw new Error(`Proof delete failed: ${resp.status}`);
+}
+
+export function getProofUrl(config, proofPath) {
+  if (!proofPath || !config.account || !config.sasToken) return null;
+  return getBlobUrl(config, proofPath);
+}
+
 export function getQrUrl(config, qrPath) {
   if (!qrPath || !config.account || !config.sasToken) return null;
   return getBlobUrl(config, qrPath);
