@@ -6,12 +6,18 @@ import { toast } from '../store/toastSlice';
 import { CAT_OPTIONS, PAYMENT_OPTIONS, CAT_ICONS, PAYMENT_ICONS } from '../utils/constants';
 import { todayStr, formatNum } from '../utils/helpers';
 import { uploadReceipt } from '../utils/sync';
+import { useAdmin } from '../hooks/useAdmin';
+import { useCountdownTo } from '../hooks/useCountdownTo';
 import { Card, Btn, FormGroup, Spinner } from './UI';
 
 export default function ExpenseForm({ currentUser }) {
   const dispatch = useDispatch();
   const travelers = useSelector(s => s.trip.travelers);
+  const expenseLockDate = useSelector(s => s.trip.expenseLockDate);
   const syncConfig = useSelector(s => s.sync);
+  const { isAdmin } = useAdmin();
+  const isExpenseLocked = expenseLockDate && new Date(expenseLockDate) <= new Date() && !isAdmin;
+  const { countdown: lockCountdown } = useCountdownTo(expenseLockDate);
   const fileRef = useRef();
   const [submitting, setSubmitting] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(null);
@@ -51,6 +57,7 @@ export default function ExpenseForm({ currentUser }) {
   };
 
   const handleSubmit = useCallback(() => {
+    if (isExpenseLocked) { dispatch(toast('Expenses are locked for settlement.', 'error')); return; }
     const now = Date.now();
     if (now - lastSubmitRef.current < 3000) {
       dispatch(toast('Please wait before adding another expense.', 'error'));
@@ -144,8 +151,8 @@ export default function ExpenseForm({ currentUser }) {
           <div>
             <div style={{ fontSize: '1.15rem', fontWeight: 700 }}>Add Expense</div>
             {collapsed && (
-              <div style={{ fontSize: '0.78rem', color: 'var(--text2)', marginTop: 2 }}>
-                Tap to expand
+              <div style={{ fontSize: '0.78rem', color: isExpenseLocked ? 'var(--accent1)' : 'var(--text2)', marginTop: 2 }}>
+                {isExpenseLocked ? '\u{1F512} Locked for settlement' : lockCountdown ? `\u{1F552} Locks in ${lockCountdown}` : 'Tap to expand'}
               </div>
             )}
           </div>
@@ -173,7 +180,17 @@ export default function ExpenseForm({ currentUser }) {
             transition={{ duration: 0.25, ease: 'easeInOut' }}
             style={{ overflow: 'hidden' }}
           >
-            <div className="expense-form-body" style={{ paddingTop: 20 }}>
+            <div className="expense-form-body" style={{ paddingTop: 20, ...(isExpenseLocked ? { opacity: 0.5, pointerEvents: 'none' } : {}) }}>
+              {isExpenseLocked && (
+                <div style={{
+                  padding: '12px 16px', borderRadius: 10, marginBottom: 16,
+                  background: 'rgba(255,107,107,0.1)', border: '1px solid rgba(255,107,107,0.25)',
+                  fontSize: '0.85rem', fontWeight: 600, color: 'var(--accent1)',
+                  pointerEvents: 'auto',
+                }}>
+                  {'\u{1F512}'} Expenses are locked for settlement. Contact the admin to unlock.
+                </div>
+              )}
               <FormGroup label="Description" required error={errors.description}>
                 <input value={form.description} onChange={e => { set('description', e.target.value); setErrors(p => ({ ...p, description: undefined })); }} placeholder="e.g. Lunch at Flotsam" />
               </FormGroup>

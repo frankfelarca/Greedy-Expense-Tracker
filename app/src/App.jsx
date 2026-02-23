@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useAdmin } from './hooks/useAdmin';
+import { useCountdownTo } from './hooks/useCountdownTo';
 import { resolveUser, hashName } from './utils/helpers';
 import { startAutoPolling, stopAutoPolling, fetchTokens, seedTokens } from './utils/sync';
 import Header from './components/Header';
@@ -292,8 +293,11 @@ export default function App() {
   const [accepted, setAccepted] = useState(() => localStorage.getItem('termsAccepted') === 'true');
   const [showPaymentSetup, setShowPaymentSetup] = useState(false);
   const [activeTab, setActiveTab] = useState('expenses');
-  const { showPasswordModal, handlePasswordSubmit, handlePasswordClose } = useAdmin();
+  const { isAdmin, showPasswordModal, handlePasswordSubmit, handlePasswordClose } = useAdmin();
   const travelers = useSelector(s => s.trip.travelers);
+  const expenseLockDate = useSelector(s => s.trip.expenseLockDate);
+  const isExpenseLocked = expenseLockDate && new Date(expenseLockDate) <= new Date() && !isAdmin;
+  const { countdown: lockCountdown } = useCountdownTo(expenseLockDate);
   const [currentUser, setCurrentUser] = useState(null);
   const [userChecked, setUserChecked] = useState(false);
   const [accessRevoked, setAccessRevoked] = useState(false);
@@ -396,6 +400,24 @@ export default function App() {
             <span>&#128100;</span>
             <span style={{ color: 'var(--text2)' }}>Logged in as</span>
             <strong style={{ color: 'var(--accent5)' }}>{currentUser}</strong>
+          </div>
+        </Card>
+      )}
+
+      {isExpenseLocked && (
+        <Card className="no-print" style={{ padding: '10px 20px', marginBottom: 16, background: 'rgba(255,107,107,0.08)', border: '1px solid rgba(255,107,107,0.2)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.84rem', color: 'var(--accent1)', fontWeight: 600 }}>
+            <span>{`\u{1F512}`}</span>
+            <span>Expenses are locked for settlement. Contact the admin to unlock.</span>
+          </div>
+        </Card>
+      )}
+
+      {!isExpenseLocked && lockCountdown && (
+        <Card className="no-print" style={{ padding: '10px 20px', marginBottom: 16, background: 'rgba(254,202,87,0.08)', border: '1px solid rgba(254,202,87,0.2)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.84rem', color: 'var(--accent2)', fontWeight: 600 }}>
+            <span>{`\u{1F552}`}</span>
+            <span>Expenses will lock in <span style={{ fontVariantNumeric: 'tabular-nums' }}>{lockCountdown}</span></span>
           </div>
         </Card>
       )}

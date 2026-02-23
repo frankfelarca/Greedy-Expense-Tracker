@@ -1,13 +1,17 @@
-export function computeBalances(expenses, travelers) {
+export function computeBalances(expenses, travelers, paidExpenses, excludedExpenses) {
   const personPaid = {};
   const personShare = {};
   travelers.forEach(t => { personPaid[t.name] = 0; personShare[t.name] = 0; });
   expenses.forEach(exp => {
-    if (personPaid[exp.paidBy] !== undefined) personPaid[exp.paidBy] += exp.amount;
-    const share = Math.round((exp.amount / exp.splitAmong.length) * 100) / 100;
-    exp.splitAmong.forEach(name => {
-      if (personShare[name] !== undefined) personShare[name] += share;
-    });
+    const isPaid = paidExpenses && paidExpenses[exp.id];
+    const isExcluded = excludedExpenses && excludedExpenses[exp.id];
+    if (!isPaid && !isExcluded) {
+      if (personPaid[exp.paidBy] !== undefined) personPaid[exp.paidBy] += exp.amount;
+      const share = Math.round((exp.amount / exp.splitAmong.length) * 100) / 100;
+      exp.splitAmong.forEach(name => {
+        if (personShare[name] !== undefined) personShare[name] += share;
+      });
+    }
   });
   const balances = travelers.map(t => ({
     name: t.name,

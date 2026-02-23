@@ -6,6 +6,10 @@ import tripReducer, {
   addDpCollections, deleteDpCollection,
   restoreExpense, restoreHotelPayment, restoreDpCollection,
   setQrCode, setPaymentInfo, loadCloudState, clearAll,
+  excludeExpense, includeExpense,
+  setProofOfPayment, removeProofOfPayment, declineProofOfPayment,
+  markSettlementPaid, unmarkSettlementPaid,
+  setExpenseLockDate,
 } from '../store/tripSlice';
 
 const initialState = () => tripReducer(undefined, { type: '@@INIT' });
@@ -398,6 +402,150 @@ describe('tripSlice', () => {
         paymentInfo: { Alice: { gcash: '091234' } },
       }));
       expect(state.paymentInfo.Alice.gcash).toBe('091234');
+    });
+  });
+
+  describe('excludeExpense / includeExpense', () => {
+    it('excludes an expense', () => {
+      state = tripReducer(state, excludeExpense({ expenseId: 'e1', excludedBy: 'Admin' }));
+      expect(state.excludedExpenses.e1).toBeDefined();
+      expect(state.excludedExpenses.e1.excludedBy).toBe('Admin');
+    });
+
+    it('includes a previously excluded expense', () => {
+      state = tripReducer(state, excludeExpense({ expenseId: 'e1', excludedBy: 'Admin' }));
+      state = tripReducer(state, includeExpense('e1'));
+      expect(state.excludedExpenses.e1).toBeUndefined();
+    });
+
+    it('loads excludedExpenses from cloud', () => {
+      state = tripReducer(state, loadCloudState({
+        excludedExpenses: { e1: { excludedBy: 'Admin', at: '2026-01-01' } },
+      }));
+      expect(state.excludedExpenses.e1.excludedBy).toBe('Admin');
+    });
+
+    it('defaults excludedExpenses to empty object on invalid cloud data', () => {
+      state = tripReducer(state, loadCloudState({ excludedExpenses: 'invalid' }));
+      expect(state.excludedExpenses).toEqual({});
+    });
+  });
+
+  describe('setProofOfPayment / removeProofOfPayment', () => {
+    it('sets proof of payment for a settlement', () => {
+      state = tripReducer(state, setProofOfPayment({ settlementKey: 'Alice__Bob', path: 'proofs/Alice__Bob.png', uploadedBy: 'Alice' }));
+      expect(state.proofOfPayment['Alice__Bob']).toBeDefined();
+      expect(state.proofOfPayment['Alice__Bob'].path).toBe('proofs/Alice__Bob.png');
+      expect(state.proofOfPayment['Alice__Bob'].uploadedBy).toBe('Alice');
+      expect(state.proofOfPayment['Alice__Bob'].at).toBeDefined();
+    });
+
+    it('replaces existing proof', () => {
+      state = tripReducer(state, setProofOfPayment({ settlementKey: 'Alice__Bob', path: 'proofs/old.png', uploadedBy: 'Alice' }));
+      state = tripReducer(state, setProofOfPayment({ settlementKey: 'Alice__Bob', path: 'proofs/new.png', uploadedBy: 'Alice' }));
+      expect(state.proofOfPayment['Alice__Bob'].path).toBe('proofs/new.png');
+    });
+
+    it('removes proof of payment', () => {
+      state = tripReducer(state, setProofOfPayment({ settlementKey: 'Alice__Bob', path: 'proofs/Alice__Bob.png', uploadedBy: 'Alice' }));
+      state = tripReducer(state, removeProofOfPayment('Alice__Bob'));
+      expect(state.proofOfPayment['Alice__Bob']).toBeUndefined();
+    });
+
+    it('sets status to pending on upload', () => {
+      state = tripReducer(state, setProofOfPayment({ settlementKey: 'Alice__Bob', path: 'proofs/x.png', uploadedBy: 'Alice' }));
+      expect(state.proofOfPayment['Alice__Bob'].status).toBe('pending');
+    });
+
+    it('sanitizes uploadedBy', () => {
+      state = tripReducer(state, setProofOfPayment({ settlementKey: 'k', path: 'p', uploadedBy: '<script>x</script>' }));
+      expect(state.proofOfPayment.k.uploadedBy).not.toContain('<');
+    });
+
+    it('declines proof of payment with reason', () => {
+      state = tripReducer(state, setProofOfPayment({ settlementKey: 'Alice__Bob', path: 'proofs/x.png', uploadedBy: 'Alice' }));
+      state = tripReducer(state, declineProofOfPayment({ settlementKey: 'Alice__Bob', declinedBy: 'Bob', reason: 'Wrong amount' }));
+      expect(state.proofOfPayment['Alice__Bob'].status).toBe('declined');
+      expect(state.proofOfPayment['Alice__Bob'].path).toBeNull();
+      expect(state.proofOfPayment['Alice__Bob'].declinedBy).toBe('Bob');
+      expect(state.proofOfPayment['Alice__Bob'].declineReason).toBe('Wrong amount');
+      expect(state.proofOfPayment['Alice__Bob'].declinedAt).toBeDefined();
+    });
+
+    it('sanitizes decline fields', () => {
+      state = tripReducer(state, declineProofOfPayment({ settlementKey: 'k', declinedBy: '<b>Bob</b>', reason: '<script>x</script>' }));
+      expect(state.proofOfPayment.k.declinedBy).not.toContain('<');
+      expect(state.proofOfPayment.k.declineReason).not.toContain('<');
+    });
+
+    it('re-upload after decline resets to pending', () => {
+      state = tripReducer(state, setProofOfPayment({ settlementKey: 'Alice__Bob', path: 'proofs/old.png', uploadedBy: 'Alice' }));
+      state = tripReducer(state, declineProofOfPayment({ settlementKey: 'Alice__Bob', declinedBy: 'Bob', reason: 'Blurry' }));
+      state = tripReducer(state, setProofOfPayment({ settlementKey: 'Alice__Bob', path: 'proofs/new.png', uploadedBy: 'Alice' }));
+      expect(state.proofOfPayment['Alice__Bob'].status).toBe('pending');
+      expect(state.proofOfPayment['Alice__Bob'].path).toBe('proofs/new.png');
+    });
+
+    it('loads proofOfPayment from cloud', () => {
+      state = tripReducer(state, loadCloudState({
+        proofOfPayment: { 'Alice__Bob': { path: 'proofs/x.png', uploadedBy: 'Alice', at: '2026-01-01' } },
+      }));
+      expect(state.proofOfPayment['Alice__Bob'].path).toBe('proofs/x.png');
+    });
+
+    it('defaults proofOfPayment to empty object on invalid cloud data', () => {
+      state = tripReducer(state, loadCloudState({ proofOfPayment: 'invalid' }));
+      expect(state.proofOfPayment).toEqual({});
+    });
+  });
+
+  describe('markSettlementPaid / unmarkSettlementPaid', () => {
+    it('marks a settlement as paid', () => {
+      state = tripReducer(state, markSettlementPaid({ key: 'Alice__Bob', confirmedBy: 'Bob', date: '2026-01-15' }));
+      expect(state.paidSettlements['Alice__Bob']).toBeDefined();
+      expect(state.paidSettlements['Alice__Bob'].confirmedBy).toBe('Bob');
+      expect(state.paidSettlements['Alice__Bob'].date).toBe('2026-01-15');
+    });
+
+    it('unmarks a settlement', () => {
+      state = tripReducer(state, markSettlementPaid({ key: 'Alice__Bob', confirmedBy: 'Bob', date: '2026-01-15' }));
+      state = tripReducer(state, unmarkSettlementPaid('Alice__Bob'));
+      expect(state.paidSettlements['Alice__Bob']).toBeUndefined();
+    });
+  });
+
+  describe('setExpenseLockDate', () => {
+    it('sets an expense lock date', () => {
+      state = tripReducer(state, setExpenseLockDate('2026-03-01T00:00:00.000Z'));
+      expect(state.expenseLockDate).toBe('2026-03-01T00:00:00.000Z');
+    });
+
+    it('clears expense lock date with null', () => {
+      state = tripReducer(state, setExpenseLockDate('2026-03-01T00:00:00.000Z'));
+      state = tripReducer(state, setExpenseLockDate(null));
+      expect(state.expenseLockDate).toBeNull();
+    });
+
+    it('clears expense lock date with empty string', () => {
+      state = tripReducer(state, setExpenseLockDate('2026-03-01T00:00:00.000Z'));
+      state = tripReducer(state, setExpenseLockDate(''));
+      expect(state.expenseLockDate).toBeNull();
+    });
+
+    it('loads expenseLockDate from cloud', () => {
+      state = tripReducer(state, loadCloudState({ expenseLockDate: '2026-03-01T12:00:00.000Z' }));
+      expect(state.expenseLockDate).toBe('2026-03-01T12:00:00.000Z');
+    });
+
+    it('defaults expenseLockDate to null on invalid cloud data', () => {
+      state = tripReducer(state, loadCloudState({ expenseLockDate: 123 }));
+      expect(state.expenseLockDate).toBeNull();
+    });
+
+    it('resets expenseLockDate on clearAll', () => {
+      state = tripReducer(state, setExpenseLockDate('2026-03-01T00:00:00.000Z'));
+      state = tripReducer(state, clearAll());
+      expect(state.expenseLockDate).toBeNull();
     });
   });
 
