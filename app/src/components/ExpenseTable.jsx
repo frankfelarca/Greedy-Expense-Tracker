@@ -680,14 +680,14 @@ export default function ExpenseTable({ currentUser }) {
                           <button onClick={() => handleDelete(exp)} title="Delete" style={{ width: 28, height: 28, borderRadius: 7, border: '1px solid rgba(255,107,107,0.25)', background: 'rgba(255,107,107,0.1)', color: 'var(--accent1)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.78rem', padding: 0, transition: 'all 0.15s' }}>&#128465;</button>
                         </>
                       )}
-                      {isAdmin && (
+                      {(isAdmin || (currentUser && exp.loggedBy === currentUser)) && (
                         <button
-                          onClick={() => excludedExpenses[exp.id] ? dispatch(includeExpense(exp.id)) : requireAdmin(() => { setExcludeModal(exp.id); setExcludeNote(''); })}
+                          onClick={() => excludedExpenses[exp.id] ? dispatch(includeExpense(exp.id)) : isAdmin ? requireAdmin(() => { setExcludeModal(exp.id); setExcludeNote(''); }) : (() => { setExcludeModal(exp.id); setExcludeNote(''); })()}
                           title={excludedExpenses[exp.id] ? 'Include in settlements' : 'Exclude from settlements'}
                           style={{ width: 28, height: 28, borderRadius: 7, border: `1px solid ${excludedExpenses[exp.id] ? 'rgba(67,233,123,0.3)' : 'rgba(255,159,243,0.3)'}`, background: excludedExpenses[exp.id] ? 'rgba(67,233,123,0.1)' : 'rgba(255,159,243,0.1)', color: excludedExpenses[exp.id] ? 'var(--green)' : 'var(--accent4)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.78rem', padding: 0, transition: 'all 0.15s' }}
                         >{excludedExpenses[exp.id] ? '\u2714' : '\u2298'}</button>
                       )}
-                      {!canModify(exp) && !isAdmin && <span style={{ color: 'var(--text2)', fontSize: '0.75rem' }}>&mdash;</span>}
+                      {!canModify(exp) && !isAdmin && !(currentUser && exp.loggedBy === currentUser) && <span style={{ color: 'var(--text2)', fontSize: '0.75rem' }}>&mdash;</span>}
                     </div>
                   </td>
                 </tr>
