@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { useSelector, useDispatch } from "react-redux";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   setQrCode,
   setPaymentInfo,
@@ -59,30 +59,46 @@ export default function SettlementTab({ currentUser }) {
   const [declineReason, setDeclineReason] = useState("");
   const [declineAmount, setDeclineAmount] = useState("");
   const [breakdownFilter, setBreakdownFilter] = useState("mine");
+  const [breakdownOpen, setBreakdownOpen] = useState(() => window.innerWidth >= 641);
   const savedInfo = paymentInfo[currentUser] || {
     gcash: "",
     maya: "",
     maribank: "",
   };
+  const savedCustom = savedInfo.custom || null;
   const [infoForm, setInfoForm] = useState({
     gcash: savedInfo.gcash || "",
     maya: savedInfo.maya || "",
     maribank: savedInfo.maribank || "",
   });
+  const [customForm, setCustomForm] = useState(
+    savedCustom ? { label: savedCustom.label || "", number: savedCustom.number || "" } : null,
+  );
   const [infoErrors, setInfoErrors] = useState({});
+  const customDirty = (() => {
+    if (!customForm && !savedCustom) return false;
+    if (!customForm && savedCustom) return true;
+    if (customForm && !savedCustom) return true;
+    return customForm.label !== (savedCustom?.label || "") || customForm.number !== (savedCustom?.number || "");
+  })();
   const infoDirty =
     infoForm.gcash !== (savedInfo.gcash || "") ||
     infoForm.maya !== (savedInfo.maya || "") ||
-    infoForm.maribank !== (savedInfo.maribank || "");
+    infoForm.maribank !== (savedInfo.maribank || "") ||
+    customDirty;
 
   useEffect(() => {
-    if (!infoDirty)
+    if (!infoDirty) {
       setInfoForm({
         gcash: savedInfo.gcash || "",
         maya: savedInfo.maya || "",
         maribank: savedInfo.maribank || "",
       });
-  }, [savedInfo.gcash, savedInfo.maya, savedInfo.maribank]);
+      setCustomForm(
+        savedCustom ? { label: savedCustom.label || "", number: savedCustom.number || "" } : null,
+      );
+    }
+  }, [savedInfo.gcash, savedInfo.maya, savedInfo.maribank, savedCustom?.label, savedCustom?.number]);
 
   const { balances } = useMemo(
     () => computeBalances(expenses, travelers, paidExpenses, numberOfCars),
@@ -366,12 +382,22 @@ export default function SettlementTab({ currentUser }) {
       errs.maya = "Must be 11 digits starting with 09";
     if (infoForm.maribank && infoForm.maribank.length < 10)
       errs.maribank = "Must be at least 10 digits";
+    if (customForm && customForm.label && !customForm.number)
+      errs.customNumber = "Account number is required";
+    if (customForm && customForm.number && !customForm.label)
+      errs.customLabel = "Bank/wallet name is required";
     setInfoErrors(errs);
     if (Object.keys(errs).length > 0) {
       dispatch(toast("Please fix the errors.", "error"));
       return;
     }
-    dispatch(setPaymentInfo({ name: currentUser, info: infoForm }));
+    const info = { ...infoForm };
+    if (customForm && customForm.label && customForm.number) {
+      info.custom = { label: customForm.label, number: customForm.number };
+    } else {
+      info.custom = null;
+    }
+    dispatch(setPaymentInfo({ name: currentUser, info }));
     dispatch(toast("Payment info saved!"));
   };
 
@@ -382,9 +408,11 @@ export default function SettlementTab({ currentUser }) {
       qr.gcash ||
       qr.maya ||
       qr.maribank ||
+      qr.custom ||
       info.gcash ||
       info.maya ||
-      info.maribank
+      info.maribank ||
+      info.custom?.number
     );
   };
 
@@ -467,6 +495,8 @@ export default function SettlementTab({ currentUser }) {
 
   return (
     <>
+      <div className="settlement-grid">
+      <div className="settlement-col">
       <Card>
         <CardTitle icon="&#129309;" gradient="var(--gradient4)">
           Who Owes Whom
@@ -1005,22 +1035,422 @@ export default function SettlementTab({ currentUser }) {
             Add expenses and travelers to see settlements.
           </div>
         )}
+      </Card>
 
+      {excessByCollector.length > 0 && totalExcess > 0.01 && (
+        <Card>
+          <CardTitle icon="&#128176;" gradient="var(--gradient4)">
+            DP Excess Returns
+          </CardTitle>
+          <div
+            style={{
+              padding: "12px 18px",
+              borderRadius: 12,
+              marginBottom: 14,
+              background: "rgba(67,233,123,0.08)",
+              border: "1px solid rgba(67,233,123,0.2)",
+              fontSize: "0.82rem",
+              color: "var(--text2)",
+              lineHeight: 1.7,
+            }}
+          >
+            Total collected: &#8369;{formatNum(totalCollected)} &mdash; Hotel
+            cost: &#8369;{formatNum(hotelCost)} &mdash; Excess:{" "}
+            <span style={{ fontWeight: 700, color: "var(--green)" }}>
+              &#8369;{formatNum(totalExcess)}
+            </span>
+          </div>
+          {excessByCollector.map((e, ci) => (
+            <div key={ci} style={{ marginBottom: 14 }}>
+              <div
+                style={{
+                  fontSize: "0.75rem",
+                  fontWeight: 700,
+                  letterSpacing: 0.5,
+                  color:
+                    currentUser && e.collector === currentUser
+                      ? "var(--accent5)"
+                      : "var(--text)",
+                  marginBottom: 6,
+                  paddingLeft: 2,
+                }}
+              >
+                {e.collector}
+                {currentUser && e.collector === currentUser ? " (You)" : ""}
+                <span
+                  style={{
+                    fontWeight: 500,
+                    color: "var(--text2)",
+                    marginLeft: 8,
+                  }}
+                >
+                  &mdash; returns &#8369;{formatNum(e.totalExcess)}
+                </span>
+              </div>
+              <div
+                style={{
+                  overflowX: "auto",
+                  borderRadius: 12,
+                  border: "1px solid rgba(67,233,123,0.3)",
+                }}
+              >
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Return To</th>
+                      <th>Collected</th>
+                      <th>Hotel Share</th>
+                      <th>Excess</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {e.persons.map((p, pi) => (
+                      <tr
+                        key={pi}
+                        style={{
+                          background:
+                            currentUser && p.person === currentUser
+                              ? "rgba(84,160,255,0.08)"
+                              : undefined,
+                        }}
+                      >
+                        <td
+                          style={{
+                            fontWeight: 600,
+                            color:
+                              currentUser && p.person === currentUser
+                                ? "var(--accent5)"
+                                : undefined,
+                          }}
+                        >
+                          {p.person}
+                          {currentUser && p.person === currentUser
+                            ? " (You)"
+                            : ""}
+                        </td>
+                        <td style={{ fontVariantNumeric: "tabular-nums" }}>
+                          &#8369;{formatNum(p.collected)}
+                        </td>
+                        <td style={{ fontVariantNumeric: "tabular-nums" }}>
+                          &#8369;{formatNum(p.hotelShare)}
+                        </td>
+                        <td
+                          style={{
+                            fontWeight: 700,
+                            fontVariantNumeric: "tabular-nums",
+                            color:
+                              p.excess > 0
+                                ? "var(--green)"
+                                : "var(--accent1)",
+                          }}
+                        >
+                          &#8369;{formatNum(p.excess)}
+                        </td>
+                      </tr>
+                    ))}
+                    {e.persons.length > 1 && (
+                      <tr
+                        style={{
+                          background: "var(--surface2)",
+                          fontWeight: 700,
+                        }}
+                      >
+                        <td>Total</td>
+                        <td style={{ fontVariantNumeric: "tabular-nums" }}>
+                          &#8369;{formatNum(e.totalCollected)}
+                        </td>
+                        <td style={{ fontVariantNumeric: "tabular-nums" }}>
+                          &#8369;{formatNum(e.totalHotelShare)}
+                        </td>
+                        <td
+                          style={{
+                            fontVariantNumeric: "tabular-nums",
+                            color:
+                              e.totalExcess > 0
+                                ? "var(--green)"
+                                : "var(--accent1)",
+                          }}
+                        >
+                          &#8369;{formatNum(e.totalExcess)}
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ))}
+        </Card>
+      )}
+
+      {currentUser && (
+        <Card>
+          <CardTitle icon="&#128179;" gradient="var(--gradient1)">
+            Your Payment Details
+          </CardTitle>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+              gap: 14,
+              marginBottom: 14,
+            }}
+          >
+            {WALLET_TYPES.map((f) => {
+              const userQr = getUserQr(currentUser);
+              const qrPath = userQr[f.key];
+              const qrUrl = resolveQrUrl(qrPath);
+              return (
+                <div
+                  key={f.key}
+                  style={{
+                    padding: 14,
+                    borderRadius: 12,
+                    background: "var(--surface2)",
+                    border: "1px solid var(--border)",
+                    transition: "all 0.2s",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = "var(--accent5)";
+                    e.currentTarget.style.background = "rgba(84,160,255,0.05)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = "var(--border)";
+                    e.currentTarget.style.background = "var(--surface2)";
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                    <span style={{ fontSize: "1.1rem" }}>{f.icon}</span>
+                    <label style={{ fontSize: "0.75rem", color: "var(--text2)", textTransform: "uppercase", letterSpacing: 0.5, fontWeight: 600, margin: 0 }}>
+                      {f.label}
+                    </label>
+                    {savedInfo[f.key] && infoForm[f.key] === savedInfo[f.key] && (
+                      <span style={{ marginLeft: "auto", fontSize: "0.65rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, color: "var(--green)", background: "rgba(0,210,211,0.15)", padding: "2px 8px", borderRadius: 20 }}>
+                        {"\u2713"} Added
+                      </span>
+                    )}
+                  </div>
+                  <input
+                    value={infoForm[f.key] || ""}
+                    onChange={(e) => handleInfoChange(f.key, e.target.value)}
+                    placeholder={f.key === "maribank" ? "Account number" : "09XXXXXXXXX"}
+                    inputMode="numeric"
+                    maxLength={f.key === "maribank" ? 13 : 11}
+                    style={{ width: "100%", boxSizing: "border-box", background: "var(--surface3)", borderColor: infoErrors[f.key] ? "var(--accent1)" : "var(--border)", fontSize: "0.88rem", letterSpacing: "1px" }}
+                  />
+                  {infoErrors[f.key] && (
+                    <div style={{ fontSize: "0.68rem", color: "var(--accent1)", marginTop: 6, fontWeight: 500 }}>
+                      {"\u26A0"} {infoErrors[f.key]}
+                    </div>
+                  )}
+                  <div style={{ marginTop: 10 }}>
+                    {qrUrl ? (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                        <div
+                          style={{ position: "relative", borderRadius: 10, overflow: "hidden", border: "1.5px solid var(--accent5)", cursor: "pointer", background: "var(--surface3)" }}
+                          onClick={() => { setQrWallet(f.key); setQrModal(currentUser); }}
+                        >
+                          <img src={qrUrl} alt={`${f.label} QR`} style={{ width: "100%", maxHeight: 140, objectFit: "cover", display: "block" }} />
+                          <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, background: "linear-gradient(transparent, rgba(0,0,0,0.5))", padding: "12px 8px 6px", textAlign: "center", fontSize: "0.65rem", fontWeight: 600, color: "white", letterSpacing: 0.5, textTransform: "uppercase" }}>
+                            Tap to view
+                          </div>
+                        </div>
+                        <div style={{ display: "flex", gap: 6 }}>
+                          <label style={{ flex: 1, background: "var(--surface3)", border: "1px solid var(--border)", borderRadius: 8, padding: "6px 0", fontSize: "0.7rem", fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 4, color: "var(--accent5)", transition: "all 0.2s" }}>
+                            {uploading === f.key ? (<><Spinner size={12} color="var(--accent5)" /> Replacing...</>) : (<>{"\u{1F504}"} Replace</>)}
+                            <input key={`r-${f.key}-${uploadKey}`} type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => handleQrUpload(f.key, e)} style={{ display: "none" }} disabled={!!uploading} />
+                          </label>
+                          <button onClick={() => handleRemoveQr(f.key)} style={{ flex: 1, background: "none", border: "1px solid rgba(255,107,107,0.3)", borderRadius: 8, padding: "6px 0", fontSize: "0.7rem", fontWeight: 600, cursor: "pointer", color: "var(--accent1)", transition: "all 0.2s" }}>
+                            {"\u{1F5D1}"} Remove
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <label style={{ background: "var(--surface3)", border: "1.5px dashed var(--border)", borderRadius: 10, padding: "14px 12px", fontSize: "0.72rem", fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, color: "var(--text2)", transition: "all 0.2s" }}>
+                        {uploading === f.key ? (<><Spinner size={12} color="var(--text2)" /> Uploading...</>) : (<>{"\u{1F4F7}"} Upload QR</>)}
+                        <input key={`u-${f.key}-${uploadKey}`} type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => handleQrUpload(f.key, e)} style={{ display: "none" }} disabled={!!uploading} />
+                      </label>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+
+            {/* Custom payment method — 4th grid item */}
+            {customForm ? (
+              <div style={{
+                padding: 14, borderRadius: 12,
+                background: "var(--surface2)", border: "1px solid var(--border)",
+              }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ fontSize: "1.1rem" }}>{"\u{1F3E6}"}</span>
+                    <span style={{ fontSize: "0.75rem", color: "var(--text2)", textTransform: "uppercase", letterSpacing: 0.5, fontWeight: 600 }}>
+                      Custom
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => { setCustomForm(null); setInfoErrors(prev => ({ ...prev, customLabel: undefined, customNumber: undefined })); }}
+                    style={{
+                      background: "none", border: "none", cursor: "pointer",
+                      fontSize: "0.65rem", fontWeight: 600, color: "var(--accent1)",
+                      fontFamily: "Inter, sans-serif", textDecoration: "underline",
+                    }}
+                  >
+                    Remove
+                  </button>
+                </div>
+                <input
+                  value={customForm.label}
+                  onChange={(e) => {
+                    setCustomForm(prev => ({ ...prev, label: e.target.value }));
+                    setInfoErrors(prev => ({ ...prev, customLabel: undefined }));
+                  }}
+                  placeholder="Bank / wallet name"
+                  maxLength={30}
+                  style={{
+                    width: "100%", boxSizing: "border-box", marginBottom: 6,
+                    background: "var(--surface3)",
+                    borderColor: infoErrors.customLabel ? "var(--accent1)" : "var(--border)",
+                    fontSize: "0.85rem",
+                  }}
+                />
+                {infoErrors.customLabel && (
+                  <div style={{ fontSize: "0.68rem", color: "var(--accent1)", marginBottom: 6, fontWeight: 500 }}>
+                    {"\u26A0"} {infoErrors.customLabel}
+                  </div>
+                )}
+                <input
+                  value={customForm.number}
+                  onChange={(e) => {
+                    setCustomForm(prev => ({ ...prev, number: e.target.value }));
+                    setInfoErrors(prev => ({ ...prev, customNumber: undefined }));
+                  }}
+                  placeholder="Account number"
+                  maxLength={30}
+                  style={{
+                    width: "100%", boxSizing: "border-box",
+                    background: "var(--surface3)",
+                    borderColor: infoErrors.customNumber ? "var(--accent1)" : "var(--border)",
+                    fontSize: "0.85rem",
+                  }}
+                />
+                {infoErrors.customNumber && (
+                  <div style={{ fontSize: "0.68rem", color: "var(--accent1)", marginTop: 4, fontWeight: 500 }}>
+                    {"\u26A0"} {infoErrors.customNumber}
+                  </div>
+                )}
+                {(() => {
+                  const userQr = getUserQr(currentUser);
+                  const qrUrl = userQr.custom ? resolveQrUrl(userQr.custom) : null;
+                  return (
+                    <div style={{ marginTop: 10 }}>
+                      {qrUrl ? (
+                        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                          <div
+                            style={{ position: "relative", borderRadius: 10, overflow: "hidden", border: "1.5px solid var(--accent5)", cursor: "pointer", background: "var(--surface3)" }}
+                            onClick={() => { setQrWallet("custom"); setQrModal(currentUser); }}
+                          >
+                            <img src={qrUrl} alt="Custom QR" style={{ width: "100%", maxHeight: 140, objectFit: "cover", display: "block" }} />
+                            <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, background: "linear-gradient(transparent, rgba(0,0,0,0.5))", padding: "12px 8px 6px", textAlign: "center", fontSize: "0.65rem", fontWeight: 600, color: "white", letterSpacing: 0.5, textTransform: "uppercase" }}>
+                              Tap to view
+                            </div>
+                          </div>
+                          <div style={{ display: "flex", gap: 6 }}>
+                            <label style={{ flex: 1, background: "var(--surface3)", border: "1px solid var(--border)", borderRadius: 8, padding: "6px 0", fontSize: "0.7rem", fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 4, color: "var(--accent5)", transition: "all 0.2s" }}>
+                              {uploading === "custom" ? (<><Spinner size={12} color="var(--accent5)" /> Replacing...</>) : (<>{"\u{1F504}"} Replace</>)}
+                              <input key={`r-custom-${uploadKey}`} type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => handleQrUpload("custom", e)} style={{ display: "none" }} disabled={!!uploading} />
+                            </label>
+                            <button onClick={() => handleRemoveQr("custom")} style={{ flex: 1, background: "none", border: "1px solid rgba(255,107,107,0.3)", borderRadius: 8, padding: "6px 0", fontSize: "0.7rem", fontWeight: 600, cursor: "pointer", color: "var(--accent1)", transition: "all 0.2s" }}>
+                              {"\u{1F5D1}"} Remove
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <label style={{ background: "var(--surface3)", border: "1.5px dashed var(--border)", borderRadius: 10, padding: "14px 12px", fontSize: "0.72rem", fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, color: "var(--text2)", transition: "all 0.2s" }}>
+                          {uploading === "custom" ? (<><Spinner size={12} color="var(--text2)" /> Uploading...</>) : (<>{"\u{1F4F7}"} Upload QR</>)}
+                          <input key={`u-custom-${uploadKey}`} type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => handleQrUpload("custom", e)} style={{ display: "none" }} disabled={!!uploading} />
+                        </label>
+                      )}
+                    </div>
+                  );
+                })()}
+              </div>
+            ) : (
+              <div
+                onClick={() => setCustomForm({ label: "", number: "" })}
+                style={{
+                  padding: 14, borderRadius: 12,
+                  border: "1.5px dashed var(--border)", background: "var(--surface2)",
+                  cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+                  gap: 8, fontSize: "0.78rem", fontWeight: 600, color: "var(--text2)",
+                  fontFamily: "Inter, sans-serif", transition: "all 0.2s",
+                  minHeight: 80,
+                }}
+              >
+                {"\u2795"} Add Custom
+              </div>
+            )}
+          </div>
+
+          <motion.button
+            whileHover={infoDirty ? { y: -2, boxShadow: "0 6px 20px rgba(67,233,123,0.3)" } : undefined}
+            whileTap={infoDirty ? { y: 0 } : undefined}
+            onClick={handleInfoSave}
+            disabled={!infoDirty}
+            style={{
+              background: infoDirty ? "var(--gradient4)" : "var(--surface3)",
+              color: infoDirty ? "#1a1a2e" : "var(--text2)",
+              border: "none", borderRadius: 10, padding: "10px 20px",
+              fontFamily: "Inter, sans-serif", fontSize: "0.88rem", fontWeight: 600,
+              cursor: infoDirty ? "pointer" : "not-allowed",
+              display: "inline-flex", alignItems: "center", gap: 8,
+              transition: "all 0.2s", width: "100%",
+            }}
+          >
+            {"\u2713"} Save Payment Details
+          </motion.button>
+        </Card>
+      )}
+      </div>
+
+      <div className="settlement-col">
         {expensesByPair.length > 0 && (
-          <div style={{ marginTop: 20 }}>
+          <Card>
             <div
+              onClick={() => setBreakdownOpen(v => !v)}
               style={{
-                fontSize: "0.75rem",
-                fontWeight: 700,
-                textTransform: "uppercase",
-                letterSpacing: 1,
-                color: "var(--accent3)",
-                marginBottom: 10,
-                paddingLeft: 2,
+                display: "flex", alignItems: "center", justifyContent: "space-between",
+                cursor: "pointer", userSelect: "none", marginBottom: breakdownOpen ? 0 : -8,
               }}
             >
-              Expense Breakdown
+              <CardTitle icon="&#128203;" gradient="var(--gradient3)">
+                Expense Breakdown
+              </CardTitle>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                {!breakdownOpen && (
+                  <span style={{ fontSize: "0.7rem", color: "var(--text2)", fontWeight: 600 }}>
+                    {expensesByPair.length} {expensesByPair.length === 1 ? "pair" : "pairs"}
+                  </span>
+                )}
+                <motion.span
+                  animate={{ rotate: breakdownOpen ? 180 : 0 }}
+                  transition={{ duration: 0.2 }}
+                  style={{ fontSize: "0.85rem", color: "var(--text2)", display: "inline-flex" }}
+                >
+                  &#9660;
+                </motion.span>
+              </div>
             </div>
+            <AnimatePresence initial={false}>
+              {breakdownOpen && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.25 }}
+                  style={{ overflow: "hidden" }}
+                >
             {currentUser && (() => {
               let toMe = 0;
               let fromMe = 0;
@@ -1223,492 +1653,48 @@ export default function SettlementTab({ currentUser }) {
                       : "No expenses involving you."}
                 </div>
               )}
-          </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </Card>
         )}
-
-        {excessByCollector.length > 0 && totalExcess > 0.01 && (
-          <div style={{ marginTop: 20 }}>
-            <div
-              style={{
-                fontSize: "0.75rem",
-                fontWeight: 700,
-                textTransform: "uppercase",
-                letterSpacing: 1,
-                color: "var(--green)",
-                marginBottom: 8,
-                paddingLeft: 2,
-              }}
-            >
-              DP Excess Returns
-            </div>
-            <div
-              style={{
-                padding: "12px 18px",
-                borderRadius: 12,
-                marginBottom: 14,
-                background: "rgba(67,233,123,0.08)",
-                border: "1px solid rgba(67,233,123,0.2)",
-                fontSize: "0.82rem",
-                color: "var(--text2)",
-                lineHeight: 1.7,
-              }}
-            >
-              Total collected: &#8369;{formatNum(totalCollected)} &mdash; Hotel
-              cost: &#8369;{formatNum(hotelCost)} &mdash; Excess:{" "}
-              <span style={{ fontWeight: 700, color: "var(--green)" }}>
-                &#8369;{formatNum(totalExcess)}
-              </span>
-            </div>
-            {excessByCollector.map((e, ci) => (
-              <div key={ci} style={{ marginBottom: 14 }}>
-                <div
-                  style={{
-                    fontSize: "0.75rem",
-                    fontWeight: 700,
-                    letterSpacing: 0.5,
-                    color:
-                      currentUser && e.collector === currentUser
-                        ? "var(--accent5)"
-                        : "var(--text)",
-                    marginBottom: 6,
-                    paddingLeft: 2,
-                  }}
-                >
-                  {e.collector}
-                  {currentUser && e.collector === currentUser ? " (You)" : ""}
-                  <span
-                    style={{
-                      fontWeight: 500,
-                      color: "var(--text2)",
-                      marginLeft: 8,
-                    }}
-                  >
-                    &mdash; returns &#8369;{formatNum(e.totalExcess)}
-                  </span>
-                </div>
-                <div
-                  style={{
-                    overflowX: "auto",
-                    borderRadius: 12,
-                    border: "1px solid rgba(67,233,123,0.3)",
-                  }}
-                >
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Return To</th>
-                        <th>Collected</th>
-                        <th>Hotel Share</th>
-                        <th>Excess</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {e.persons.map((p, pi) => (
-                        <tr
-                          key={pi}
-                          style={{
-                            background:
-                              currentUser && p.person === currentUser
-                                ? "rgba(84,160,255,0.08)"
-                                : undefined,
-                          }}
-                        >
-                          <td
-                            style={{
-                              fontWeight: 600,
-                              color:
-                                currentUser && p.person === currentUser
-                                  ? "var(--accent5)"
-                                  : undefined,
-                            }}
-                          >
-                            {p.person}
-                            {currentUser && p.person === currentUser
-                              ? " (You)"
-                              : ""}
-                          </td>
-                          <td style={{ fontVariantNumeric: "tabular-nums" }}>
-                            &#8369;{formatNum(p.collected)}
-                          </td>
-                          <td style={{ fontVariantNumeric: "tabular-nums" }}>
-                            &#8369;{formatNum(p.hotelShare)}
-                          </td>
-                          <td
-                            style={{
-                              fontWeight: 700,
-                              fontVariantNumeric: "tabular-nums",
-                              color:
-                                p.excess > 0
-                                  ? "var(--green)"
-                                  : "var(--accent1)",
-                            }}
-                          >
-                            &#8369;{formatNum(p.excess)}
-                          </td>
-                        </tr>
-                      ))}
-                      {e.persons.length > 1 && (
-                        <tr
-                          style={{
-                            background: "var(--surface2)",
-                            fontWeight: 700,
-                          }}
-                        >
-                          <td>Total</td>
-                          <td style={{ fontVariantNumeric: "tabular-nums" }}>
-                            &#8369;{formatNum(e.totalCollected)}
-                          </td>
-                          <td style={{ fontVariantNumeric: "tabular-nums" }}>
-                            &#8369;{formatNum(e.totalHotelShare)}
-                          </td>
-                          <td
-                            style={{
-                              fontVariantNumeric: "tabular-nums",
-                              color:
-                                e.totalExcess > 0
-                                  ? "var(--green)"
-                                  : "var(--accent1)",
-                            }}
-                          >
-                            &#8369;{formatNum(e.totalExcess)}
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {currentUser && (
-          <div style={{ marginTop: 20 }}>
-            <div
-              style={{
-                fontSize: "0.78rem",
-                fontWeight: 700,
-                textTransform: "uppercase",
-                letterSpacing: 1,
-                color: "var(--accent5)",
-                marginBottom: 16,
-                paddingLeft: 2,
-              }}
-            >
-              {"\u{1F4B3}"} Your Payment Details
-            </div>
-
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
-                gap: 14,
-                marginBottom: 20,
-              }}
-            >
-              {WALLET_TYPES.map((f) => {
-                const userQr = getUserQr(currentUser);
-                const qrPath = userQr[f.key];
-                const qrUrl = resolveQrUrl(qrPath);
-                return (
-                  <div
-                    key={f.key}
-                    style={{
-                      padding: 14,
-                      borderRadius: 12,
-                      background: "var(--surface2)",
-                      border: "1px solid var(--border)",
-                      transition: "all 0.2s",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.borderColor = "var(--accent5)";
-                      e.currentTarget.style.background =
-                        "rgba(84,160,255,0.05)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.borderColor = "var(--border)";
-                      e.currentTarget.style.background = "var(--surface2)";
-                    }}
-                  >
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 8,
-                        marginBottom: 8,
-                      }}
-                    >
-                      <span style={{ fontSize: "1.1rem" }}>{f.icon}</span>
-                      <label
-                        style={{
-                          fontSize: "0.75rem",
-                          color: "var(--text2)",
-                          textTransform: "uppercase",
-                          letterSpacing: 0.5,
-                          fontWeight: 600,
-                          margin: 0,
-                        }}
-                      >
-                        {f.label}
-                      </label>
-                      {savedInfo[f.key] &&
-                        infoForm[f.key] === savedInfo[f.key] && (
-                          <span
-                            style={{
-                              marginLeft: "auto",
-                              fontSize: "0.65rem",
-                              fontWeight: 700,
-                              textTransform: "uppercase",
-                              letterSpacing: 0.5,
-                              color: "var(--green)",
-                              background: "rgba(0,210,211,0.15)",
-                              padding: "2px 8px",
-                              borderRadius: 20,
-                            }}
-                          >
-                            {"\u2713"} Added
-                          </span>
-                        )}
-                    </div>
-                    <input
-                      value={infoForm[f.key] || ""}
-                      onChange={(e) => handleInfoChange(f.key, e.target.value)}
-                      placeholder={
-                        f.key === "maribank" ? "Account number" : "09XXXXXXXXX"
-                      }
-                      inputMode="numeric"
-                      maxLength={f.key === "maribank" ? 13 : 11}
-                      style={{
-                        width: "100%",
-                        boxSizing: "border-box",
-                        background: "var(--surface3)",
-                        borderColor: infoErrors[f.key]
-                          ? "var(--accent1)"
-                          : "var(--border)",
-                        fontSize: "0.88rem",
-                        letterSpacing: "1px",
-                      }}
-                    />
-                    {infoErrors[f.key] && (
-                      <div
-                        style={{
-                          fontSize: "0.68rem",
-                          color: "var(--accent1)",
-                          marginTop: 6,
-                          fontWeight: 500,
-                        }}
-                      >
-                        {"\u26A0"} {infoErrors[f.key]}
-                      </div>
-                    )}
-
-                    <div style={{ marginTop: 10 }}>
-                      {qrUrl ? (
-                        <div
-                          style={{
-                            display: "flex",
-                            flexDirection: "column",
-                            gap: 8,
-                          }}
-                        >
-                          <div
-                            style={{
-                              position: "relative",
-                              borderRadius: 10,
-                              overflow: "hidden",
-                              border: "1.5px solid var(--accent5)",
-                              cursor: "pointer",
-                              background: "var(--surface3)",
-                            }}
-                            onClick={() => {
-                              setQrWallet(f.key);
-                              setQrModal(currentUser);
-                            }}
-                          >
-                            <img
-                              src={qrUrl}
-                              alt={`${f.label} QR`}
-                              style={{
-                                width: "100%",
-                                maxHeight: 140,
-                                objectFit: "cover",
-                                display: "block",
-                              }}
-                            />
-                            <div
-                              style={{
-                                position: "absolute",
-                                bottom: 0,
-                                left: 0,
-                                right: 0,
-                                background:
-                                  "linear-gradient(transparent, rgba(0,0,0,0.5))",
-                                padding: "12px 8px 6px",
-                                textAlign: "center",
-                                fontSize: "0.65rem",
-                                fontWeight: 600,
-                                color: "white",
-                                letterSpacing: 0.5,
-                                textTransform: "uppercase",
-                              }}
-                            >
-                              Tap to view
-                            </div>
-                          </div>
-                          <div style={{ display: "flex", gap: 6 }}>
-                            <label
-                              style={{
-                                flex: 1,
-                                background: "var(--surface3)",
-                                border: "1px solid var(--border)",
-                                borderRadius: 8,
-                                padding: "6px 0",
-                                fontSize: "0.7rem",
-                                fontWeight: 600,
-                                cursor: "pointer",
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                gap: 4,
-                                color: "var(--accent5)",
-                                transition: "all 0.2s",
-                              }}
-                            >
-                              {uploading === f.key ? (
-                                <>
-                                  <Spinner size={12} color="var(--accent5)" />{" "}
-                                  Replacing...
-                                </>
-                              ) : (
-                                <>{"\u{1F504}"} Replace</>
-                              )}
-                              <input
-                                key={`r-${f.key}-${uploadKey}`}
-                                type="file"
-                                accept="image/jpeg,image/png,image/webp"
-                                onChange={(e) => handleQrUpload(f.key, e)}
-                                style={{ display: "none" }}
-                                disabled={!!uploading}
-                              />
-                            </label>
-                            <button
-                              onClick={() => handleRemoveQr(f.key)}
-                              style={{
-                                flex: 1,
-                                background: "none",
-                                border: "1px solid rgba(255,107,107,0.3)",
-                                borderRadius: 8,
-                                padding: "6px 0",
-                                fontSize: "0.7rem",
-                                fontWeight: 600,
-                                cursor: "pointer",
-                                color: "var(--accent1)",
-                                transition: "all 0.2s",
-                              }}
-                            >
-                              {"\u{1F5D1}"} Remove
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <label
-                          style={{
-                            background: "var(--surface3)",
-                            border: "1.5px dashed var(--border)",
-                            borderRadius: 10,
-                            padding: "14px 12px",
-                            fontSize: "0.72rem",
-                            fontWeight: 600,
-                            cursor: "pointer",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            gap: 6,
-                            color: "var(--text2)",
-                            transition: "all 0.2s",
-                          }}
-                        >
-                          {uploading === f.key ? (
-                            <>
-                              <Spinner size={12} color="var(--text2)" />{" "}
-                              Uploading...
-                            </>
-                          ) : (
-                            <>{"\u{1F4F7}"} Upload QR</>
-                          )}
-                          <input
-                            key={`u-${f.key}-${uploadKey}`}
-                            type="file"
-                            accept="image/jpeg,image/png,image/webp"
-                            onChange={(e) => handleQrUpload(f.key, e)}
-                            style={{ display: "none" }}
-                            disabled={!!uploading}
-                          />
-                        </label>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            <motion.button
-              whileHover={
-                infoDirty
-                  ? { y: -2, boxShadow: "0 6px 20px rgba(67,233,123,0.3)" }
-                  : undefined
-              }
-              whileTap={infoDirty ? { y: 0 } : undefined}
-              onClick={handleInfoSave}
-              disabled={!infoDirty}
-              style={{
-                background: infoDirty ? "var(--gradient4)" : "var(--surface3)",
-                color: infoDirty ? "#1a1a2e" : "var(--text2)",
-                border: "none",
-                borderRadius: 10,
-                padding: "10px 20px",
-                fontFamily: "Inter, sans-serif",
-                fontSize: "0.88rem",
-                fontWeight: 600,
-                cursor: infoDirty ? "pointer" : "not-allowed",
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 8,
-                transition: "all 0.2s",
-                width: "100%",
-                marginBottom: 18,
-              }}
-            >
-              {"\u2713"} Save Payment Details
-            </motion.button>
-          </div>
-        )}
-      </Card>
+      </div>
+      </div>
 
       <Modal open={!!qrModal} onClose={() => setQrModal(null)}>
         {qrModal &&
           (() => {
             const isOwnModal = qrModal === currentUser;
-            const info = isOwnModal
+            const rawInfo = isOwnModal
               ? {
                   gcash: infoForm.gcash || "",
                   maya: infoForm.maya || "",
                   maribank: infoForm.maribank || "",
+                  custom: customForm && customForm.label ? customForm : (savedCustom || null),
                 }
               : paymentInfo[qrModal] || {};
+            const info = rawInfo;
             const qr = getUserQr(qrModal);
-            const availableWallets = WALLET_TYPES.filter(
-              (w) => qr[w.key] || info[w.key],
-            );
+            const availableWallets = [
+              ...WALLET_TYPES.filter((w) => qr[w.key] || info[w.key]),
+              ...(info.custom?.label && (qr.custom || info.custom?.number)
+                ? [{ key: "custom", label: info.custom.label, icon: "\u{1F3E6}" }]
+                : []),
+            ];
             const activeKey =
-              qrWallet && (qr[qrWallet] || info[qrWallet])
+              qrWallet && (qr[qrWallet] || info[qrWallet] || (qrWallet === "custom" && info.custom?.number))
                 ? qrWallet
                 : availableWallets[0]?.key || null;
             const activeUrl =
               activeKey && qr[activeKey] ? resolveQrUrl(qr[activeKey]) : null;
             const activeLabel =
-              WALLET_TYPES.find((w) => w.key === activeKey)?.label || "";
-            const activeNumber = activeKey ? info[activeKey] : null;
+              activeKey === "custom"
+                ? info.custom?.label || "Custom"
+                : WALLET_TYPES.find((w) => w.key === activeKey)?.label || "";
+            const activeNumber =
+              activeKey === "custom"
+                ? info.custom?.number || null
+                : activeKey ? info[activeKey] : null;
             return (
               <>
                 <h3 style={{ color: "var(--accent5)", marginBottom: 16 }}>

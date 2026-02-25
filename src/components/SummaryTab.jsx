@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { CAT_LABELS, CAT_ICONS } from '../utils/constants';
 import { formatNum } from '../utils/helpers';
 import { computeBalances, computeSettlements } from '../utils/settlements';
-import { Card, CardTitle, Btn } from './UI';
+import { Card, CardTitle } from './UI';
 import { exportPdf } from '../utils/exportPdf';
 
 const catColors = { hotel: '#ff6b6b', meals: '#feca57', alcohol: '#ff9ff3', fuel: '#48dbfb', toll: '#a18cd1', parking: '#a18cd1', entrance: '#54a0ff', others: '#8888aa' };
@@ -229,14 +229,22 @@ export default function SummaryTab({ currentUser }) {
         </motion.div>
 
         {count > 0 && (
-          <motion.div variants={fadeUp} style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 4 }}>
-            <Btn
-              onClick={() => exportPdf({ trip, expenses, travelers, paidExpenses, paidSettlements, numberOfCars })}
-              style={{ fontSize: '0.82rem' }}
-            >
-              Export PDF
-            </Btn>
-          </motion.div>
+          <motion.button
+            variants={fadeUp}
+            whileHover={{ scale: 1.01, boxShadow: '0 4px 16px rgba(102,126,234,0.25)' }}
+            whileTap={{ scale: 0.98 }}
+            onClick={() => exportPdf({ trip, expenses, travelers, paidExpenses, paidSettlements, numberOfCars })}
+            style={{
+              width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+              padding: '12px 20px', borderRadius: 12, marginBottom: 16, marginTop: -8,
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              border: 'none', cursor: 'pointer',
+              fontSize: '0.85rem', fontWeight: 700, fontFamily: 'Inter, sans-serif',
+              color: '#fff', letterSpacing: 0.3,
+            }}
+          >
+            {'\u{1F4C4}'} Export PDF
+          </motion.button>
         )}
 
         {/* Car Expenses */}
@@ -296,6 +304,86 @@ export default function SummaryTab({ currentUser }) {
             </motion.div>
           );
         })()}
+
+        <Card>
+          <CardTitle icon="&#128100;" gradient="var(--gradient5)">Per Person</CardTitle>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12 }}>
+            {[...travelers].sort((a, b) => a.name === currentUser ? -1 : b.name === currentUser ? 1 : 0).map(t => {
+              const paid = personPaid[t.name] || 0;
+              const share = personShare[t.name] || 0;
+              const balance = paid - share;
+              const isMe = currentUser && t.name === currentUser;
+              const paidPct = total > 0 ? (paid / total) * 100 : 0;
+              return (
+                <motion.div
+                  key={t.name}
+                  variants={fadeUp}
+                  whileHover={{ y: -2 }}
+                  style={{
+                    background: isMe ? 'rgba(84,160,255,0.06)' : 'var(--surface2)',
+                    borderRadius: 14, padding: 18,
+                    border: `1.5px solid ${isMe ? 'rgba(84,160,255,0.3)' : 'var(--border)'}`,
+                    position: 'relative', overflow: 'hidden',
+                  }}
+                >
+                  {isMe && (
+                    <div style={{
+                      position: 'absolute', top: 8, right: 12,
+                      fontSize: '0.62rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1,
+                      color: 'var(--accent5)', opacity: 0.8,
+                    }}>
+                      You
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+                    <span style={{
+                      width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
+                      background: t.color, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: '0.85rem', fontWeight: 700, color: '#fff',
+                    }}>
+                      {t.name.charAt(0).toUpperCase()}
+                    </span>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>{t.name}</div>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--text2)' }}>
+                        {paidPct.toFixed(1)}% of group total
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 12 }}>
+                    <div style={{
+                      background: 'var(--surface3)', borderRadius: 8, padding: '8px 12px',
+                    }}>
+                      <div style={{ fontSize: '0.65rem', color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: 0.8, fontWeight: 600 }}>Paid</div>
+                      <div style={{ fontSize: '0.95rem', fontWeight: 700, marginTop: 2 }}>&#8369;{formatNum(paid)}</div>
+                    </div>
+                    <div style={{
+                      background: 'var(--surface3)', borderRadius: 8, padding: '8px 12px',
+                    }}>
+                      <div style={{ fontSize: '0.65rem', color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: 0.8, fontWeight: 600 }}>Share</div>
+                      <div style={{ fontSize: '0.95rem', fontWeight: 700, marginTop: 2, color: 'var(--accent3)' }}>&#8369;{formatNum(share)}</div>
+                    </div>
+                  </div>
+
+                  <div style={{
+                    padding: '8px 12px', borderRadius: 8,
+                    background: balance >= 0 ? 'rgba(67,233,123,0.1)' : 'rgba(255,107,107,0.1)',
+                    border: `1px solid ${balance >= 0 ? 'rgba(67,233,123,0.2)' : 'rgba(255,107,107,0.2)'}`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  }}>
+                    <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text2)' }}>
+                      {balance >= 0 ? 'Overpaid' : 'Owes'}
+                    </span>
+                    <span style={{ fontSize: '1.1rem', fontWeight: 800, color: balance >= 0 ? 'var(--green)' : 'var(--accent1)' }}>
+                      {balance >= 0 ? '+' : ''}&#8369;{formatNum(balance)}
+                    </span>
+                  </div>
+                </motion.div>
+              );
+            })}
+          </div>
+        </Card>
 
         {count > 0 && (
           <motion.div variants={fadeUp}>
@@ -464,85 +552,6 @@ export default function SummaryTab({ currentUser }) {
           </div>
         </Card>
 
-        <Card>
-          <CardTitle icon="&#128100;" gradient="var(--gradient5)">Per Person</CardTitle>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12 }}>
-            {[...travelers].sort((a, b) => a.name === currentUser ? -1 : b.name === currentUser ? 1 : 0).map(t => {
-              const paid = personPaid[t.name] || 0;
-              const share = personShare[t.name] || 0;
-              const balance = paid - share;
-              const isMe = currentUser && t.name === currentUser;
-              const paidPct = total > 0 ? (paid / total) * 100 : 0;
-              return (
-                <motion.div
-                  key={t.name}
-                  variants={fadeUp}
-                  whileHover={{ y: -2 }}
-                  style={{
-                    background: isMe ? 'rgba(84,160,255,0.06)' : 'var(--surface2)',
-                    borderRadius: 14, padding: 18,
-                    border: `1.5px solid ${isMe ? 'rgba(84,160,255,0.3)' : 'var(--border)'}`,
-                    position: 'relative', overflow: 'hidden',
-                  }}
-                >
-                  {isMe && (
-                    <div style={{
-                      position: 'absolute', top: 8, right: 12,
-                      fontSize: '0.62rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1,
-                      color: 'var(--accent5)', opacity: 0.8,
-                    }}>
-                      You
-                    </div>
-                  )}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-                    <span style={{
-                      width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
-                      background: t.color, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontSize: '0.85rem', fontWeight: 700, color: '#fff',
-                    }}>
-                      {t.name.charAt(0).toUpperCase()}
-                    </span>
-                    <div>
-                      <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>{t.name}</div>
-                      <div style={{ fontSize: '0.7rem', color: 'var(--text2)' }}>
-                        {paidPct.toFixed(1)}% of group total
-                      </div>
-                    </div>
-                  </div>
-
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 12 }}>
-                    <div style={{
-                      background: 'var(--surface3)', borderRadius: 8, padding: '8px 12px',
-                    }}>
-                      <div style={{ fontSize: '0.65rem', color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: 0.8, fontWeight: 600 }}>Paid</div>
-                      <div style={{ fontSize: '0.95rem', fontWeight: 700, marginTop: 2 }}>&#8369;{formatNum(paid)}</div>
-                    </div>
-                    <div style={{
-                      background: 'var(--surface3)', borderRadius: 8, padding: '8px 12px',
-                    }}>
-                      <div style={{ fontSize: '0.65rem', color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: 0.8, fontWeight: 600 }}>Share</div>
-                      <div style={{ fontSize: '0.95rem', fontWeight: 700, marginTop: 2, color: 'var(--accent3)' }}>&#8369;{formatNum(share)}</div>
-                    </div>
-                  </div>
-
-                  <div style={{
-                    padding: '8px 12px', borderRadius: 8,
-                    background: balance >= 0 ? 'rgba(67,233,123,0.1)' : 'rgba(255,107,107,0.1)',
-                    border: `1px solid ${balance >= 0 ? 'rgba(67,233,123,0.2)' : 'rgba(255,107,107,0.2)'}`,
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                  }}>
-                    <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text2)' }}>
-                      {balance >= 0 ? 'Overpaid' : 'Owes'}
-                    </span>
-                    <span style={{ fontSize: '1.1rem', fontWeight: 800, color: balance >= 0 ? 'var(--green)' : 'var(--accent1)' }}>
-                      {balance >= 0 ? '+' : ''}&#8369;{formatNum(balance)}
-                    </span>
-                  </div>
-                </motion.div>
-              );
-            })}
-          </div>
-        </Card>
       </motion.div>
     </>
   );

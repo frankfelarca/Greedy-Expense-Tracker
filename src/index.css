@@ -324,6 +324,19 @@ tr:hover td { background: var(--hover-row); }
     padding-top: 12px;
     border-top: 1px solid var(--border);
   }
+
+  .settlement-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    align-items: start;
+  }
+
+  .settlement-grid > .settlement-col {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
 }
 
 @media print {

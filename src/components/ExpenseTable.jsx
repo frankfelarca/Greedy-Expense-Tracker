@@ -709,12 +709,6 @@ export default function ExpenseTable({ currentUser }) {
                       </div>
                       {(canModify(exp) || (!isExpenseLocked && (isAdmin || (currentUser && exp.loggedBy === currentUser)))) && (
                         <div className="inline-actions" style={{ display: 'none', gap: 4, flexShrink: 0 }}>
-                          {canModify(exp) && (
-                            <>
-                              <button onClick={() => handleEdit(exp)} title="Edit" style={{ width: 28, height: 28, borderRadius: 7, border: '1px solid rgba(84,160,255,0.25)', background: 'rgba(84,160,255,0.1)', color: 'var(--accent5)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.78rem', padding: 0 }}>&#9998;</button>
-                              <button onClick={() => handleDelete(exp)} title="Delete" style={{ width: 28, height: 28, borderRadius: 7, border: '1px solid rgba(255,107,107,0.25)', background: 'rgba(255,107,107,0.1)', color: 'var(--accent1)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.78rem', padding: 0 }}>&#128465;</button>
-                            </>
-                          )}
                           {!isExpenseLocked && (isAdmin || (currentUser && exp.loggedBy === currentUser)) && (
                             <button
                               onClick={() => {
@@ -730,18 +724,18 @@ export default function ExpenseTable({ currentUser }) {
                               style={{ width: 28, height: 28, borderRadius: 7, border: `1px solid ${paidExpenses[exp.id] ? 'rgba(67,233,123,0.3)' : 'rgba(67,233,123,0.2)'}`, background: paidExpenses[exp.id] ? 'rgba(67,233,123,0.1)' : 'rgba(67,233,123,0.05)', color: paidExpenses[exp.id] ? 'var(--green)' : 'var(--text2)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.78rem', padding: 0 }}
                             >{paidExpenses[exp.id] ? '\u2714' : '\u20B1'}</button>
                           )}
+                          {canModify(exp) && (
+                            <>
+                              <button onClick={() => handleEdit(exp)} title="Edit" style={{ width: 28, height: 28, borderRadius: 7, border: '1px solid rgba(84,160,255,0.25)', background: 'rgba(84,160,255,0.1)', color: 'var(--accent5)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.78rem', padding: 0 }}>&#9998;</button>
+                              <button onClick={() => handleDelete(exp)} title="Delete" style={{ width: 28, height: 28, borderRadius: 7, border: '1px solid rgba(255,107,107,0.25)', background: 'rgba(255,107,107,0.1)', color: 'var(--accent1)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.78rem', padding: 0 }}>&#128465;</button>
+                            </>
+                          )}
                         </div>
                       )}
                     </div>
                   </td>
                   <td className="no-print" data-label="Actions">
                     <div style={{ display: 'flex', gap: 4 }}>
-                      {canModify(exp) && (
-                        <>
-                          <button onClick={() => handleEdit(exp)} title="Edit" style={{ width: 28, height: 28, borderRadius: 7, border: '1px solid rgba(84,160,255,0.25)', background: 'rgba(84,160,255,0.1)', color: 'var(--accent5)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.78rem', padding: 0, transition: 'all 0.15s' }}>&#9998;</button>
-                          <button onClick={() => handleDelete(exp)} title="Delete" style={{ width: 28, height: 28, borderRadius: 7, border: '1px solid rgba(255,107,107,0.25)', background: 'rgba(255,107,107,0.1)', color: 'var(--accent1)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.78rem', padding: 0, transition: 'all 0.15s' }}>&#128465;</button>
-                        </>
-                      )}
                       {!isExpenseLocked && (isAdmin || (currentUser && exp.loggedBy === currentUser)) && (
                         <button
                           onClick={() => {
@@ -756,6 +750,12 @@ export default function ExpenseTable({ currentUser }) {
                           title={paidExpenses[exp.id] ? 'Unmark as paid' : 'Mark as paid'}
                           style={{ width: 28, height: 28, borderRadius: 7, border: `1px solid ${paidExpenses[exp.id] ? 'rgba(67,233,123,0.3)' : 'rgba(67,233,123,0.2)'}`, background: paidExpenses[exp.id] ? 'rgba(67,233,123,0.1)' : 'rgba(67,233,123,0.05)', color: paidExpenses[exp.id] ? 'var(--green)' : 'var(--text2)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.78rem', padding: 0, transition: 'all 0.15s' }}
                         >{paidExpenses[exp.id] ? '\u2714' : '\u20B1'}</button>
+                      )}
+                      {canModify(exp) && (
+                        <>
+                          <button onClick={() => handleEdit(exp)} title="Edit" style={{ width: 28, height: 28, borderRadius: 7, border: '1px solid rgba(84,160,255,0.25)', background: 'rgba(84,160,255,0.1)', color: 'var(--accent5)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.78rem', padding: 0, transition: 'all 0.15s' }}>&#9998;</button>
+                          <button onClick={() => handleDelete(exp)} title="Delete" style={{ width: 28, height: 28, borderRadius: 7, border: '1px solid rgba(255,107,107,0.25)', background: 'rgba(255,107,107,0.1)', color: 'var(--accent1)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.78rem', padding: 0, transition: 'all 0.15s' }}>&#128465;</button>
+                        </>
                       )}
                       {!canModify(exp) && (isExpenseLocked || (!isAdmin && !(currentUser && exp.loggedBy === currentUser))) && <span style={{ color: 'var(--text2)', fontSize: '0.75rem' }}>&mdash;</span>}
                     </div>
