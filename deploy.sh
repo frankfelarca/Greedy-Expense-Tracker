@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ACCOUNT="stphiqcdtmcp001"
+ACCOUNT=$(grep '^VITE_AZURE_STORAGE_ACCOUNT=' .env | cut -d'=' -f2)
+if [ -z "$ACCOUNT" ]; then
+  echo "Error: VITE_AZURE_STORAGE_ACCOUNT not found in .env"
+  exit 1
+fi
 CONTAINER="\$web"
 
 if ! command -v az &> /dev/null; then
@@ -9,8 +13,8 @@ if ! command -v az &> /dev/null; then
   exit 1
 fi
 
-# echo "==> Building..."
-# npm run build
+echo "==> Building..."
+npm run build
 
 echo "==> Uploading dist/ to Azure Storage static website ($ACCOUNT)..."
 az storage blob upload-batch \
