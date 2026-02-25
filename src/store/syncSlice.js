@@ -4,7 +4,7 @@ import { isConfigured } from '../utils/firebase';
 const syncSlice = createSlice({
   name: 'sync',
   initialState: {
-    account: import.meta.env.VITE_AZURE_ACCOUNT || '',
+    account: import.meta.env.VITE_AZURE_STORAGE_ACCOUNT || '',
     sasToken: import.meta.env.VITE_AZURE_SAS_TOKEN || '',
     status: isConfigured ? 'connected' : 'disconnected',
     statusText: isConfigured ? 'Cloud: Ready' : 'Cloud: Not configured (check .env)',
