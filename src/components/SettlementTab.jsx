@@ -598,10 +598,10 @@ export default function SettlementTab({ currentUser }) {
                 {Math.abs(userDpExcess) > 0.01 && (
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: "2px 12px", fontSize: "0.75rem" }}>
                     <span style={{ color: "var(--text2)" }}>
-                      Hotel DP excess
+                      Hotel DP excess <span style={{ fontSize: "0.65rem", fontStyle: "italic", opacity: 0.7 }}>({userDpExcess > 0 ? "deducted from settlements" : "added to settlements"})</span>
                     </span>
                     <span style={{ fontWeight: 600, color: userDpExcess > 0 ? "var(--green)" : "var(--accent1)", whiteSpace: "nowrap" }}>
-                      {userDpExcess > 0 ? "+" : "-"}{"\u20B1"}{formatNum(Math.abs(userDpExcess))}
+                      {"\u20B1"}{formatNum(Math.abs(userDpExcess))}
                     </span>
                   </div>
                 )}
