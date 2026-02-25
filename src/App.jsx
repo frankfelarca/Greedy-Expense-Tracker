@@ -55,6 +55,7 @@ function PaymentSetupModal({ open, onClose, currentUser }) {
   const normalizedQr = typeof existingQr === 'string' ? { gcash: existingQr } : existingQr;
 
   const [form, setForm] = useState({ gcash: '', maya: '', maribank: '' });
+  const [customForm, setCustomForm] = useState(null);
   const [errors, setErrors] = useState({});
   const [uploading, setUploading] = useState(false);
   const [qrFiles, setQrFiles] = useState({});
@@ -69,6 +70,8 @@ function PaymentSetupModal({ open, onClose, currentUser }) {
         maya: existingInfo.maya || '',
         maribank: existingInfo.maribank || '',
       });
+      const savedCustom = existingInfo.custom || null;
+      setCustomForm(savedCustom ? { label: savedCustom.label || '', number: savedCustom.number || '' } : null);
       setQrFiles({});
       setQrPreviews({});
       setRemovedQrs({});
@@ -119,8 +122,14 @@ function PaymentSetupModal({ open, onClose, currentUser }) {
 
     setUploading(true);
     try {
-      if (form.gcash || form.maya || form.maribank) {
-        dispatch(setPaymentInfo({ name: currentUser, info: form }));
+      const info = { ...form };
+      if (customForm && customForm.label && customForm.number) {
+        info.custom = { label: customForm.label, number: customForm.number };
+      } else {
+        info.custom = null;
+      }
+      if (form.gcash || form.maya || form.maribank || info.custom) {
+        dispatch(setPaymentInfo({ name: currentUser, info }));
       }
       for (const w of WALLET_TYPES) {
         if (qrFiles[w.key]) {
@@ -129,6 +138,12 @@ function PaymentSetupModal({ open, onClose, currentUser }) {
         } else if (removedQrs[w.key]) {
           dispatch(setQrCode({ name: currentUser, type: w.key, path: null }));
         }
+      }
+      if (qrFiles.custom) {
+        const blobPath = await uploadQrCode(syncConfig, `${currentUser}_custom`, qrFiles.custom);
+        dispatch(setQrCode({ name: currentUser, type: 'custom', path: blobPath }));
+      } else if (removedQrs.custom) {
+        dispatch(setQrCode({ name: currentUser, type: 'custom', path: null }));
       }
       dispatch(toast('Payment info saved!'));
     } catch (err) {
@@ -147,7 +162,7 @@ function PaymentSetupModal({ open, onClose, currentUser }) {
     onClose();
   };
 
-  const hasAnyData = form.gcash || form.maya || form.maribank || Object.keys(qrFiles).length > 0;
+  const hasAnyData = form.gcash || form.maya || form.maribank || (customForm && (customForm.label || customForm.number)) || Object.keys(qrFiles).length > 0;
 
   return (
     <Modal open={open} onClose={() => {}}>
@@ -256,6 +271,116 @@ function PaymentSetupModal({ open, onClose, currentUser }) {
             </div>
           );
         })}
+
+        {/* Custom bank/wallet */}
+        {!customForm ? (
+          <div
+            onClick={() => setCustomForm({ label: '', number: '' })}
+            style={{
+              padding: 14, borderRadius: 12, background: 'var(--surface2)',
+              border: '1.5px dashed var(--border)', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+              fontSize: '0.78rem', fontWeight: 600, color: 'var(--text2)',
+              transition: 'all 0.2s',
+            }}
+          >
+            {'\u{1F3E6}'} + Add Custom Bank/Wallet
+          </div>
+        ) : (
+          <div style={{
+            padding: 14, borderRadius: 12, background: 'var(--surface2)',
+            border: `1px solid ${(customForm.label && customForm.number) ? 'rgba(67,233,123,0.25)' : 'var(--border)'}`,
+            transition: 'all 0.2s',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+              <span style={{ fontSize: '1.1rem' }}>{'\u{1F3E6}'}</span>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 600 }}>
+                Custom Bank/Wallet
+              </span>
+              {customForm.label && customForm.number && (
+                <span style={{
+                  marginLeft: 'auto', fontSize: '0.62rem', fontWeight: 700, textTransform: 'uppercase',
+                  letterSpacing: 0.5, color: 'var(--green)', background: 'rgba(0,210,211,0.15)',
+                  padding: '2px 8px', borderRadius: 20,
+                }}>{'\u2713'} Added</span>
+              )}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <input
+                value={customForm.label}
+                onChange={e => setCustomForm(prev => ({ ...prev, label: e.target.value }))}
+                placeholder="Bank/wallet name (e.g. BPI, PayPal)"
+                style={{ width: '100%', boxSizing: 'border-box', background: 'var(--surface3)', fontSize: '0.88rem' }}
+              />
+              <input
+                value={customForm.number}
+                onChange={e => setCustomForm(prev => ({ ...prev, number: e.target.value }))}
+                placeholder="Account number"
+                style={{ width: '100%', boxSizing: 'border-box', background: 'var(--surface3)', fontSize: '0.88rem', letterSpacing: '1px' }}
+              />
+            </div>
+            {/* QR upload for custom */}
+            <div style={{ marginTop: 10 }}>
+              {(() => {
+                const preview = getPreviewUrl('custom');
+                return preview ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <div style={{
+                      position: 'relative', borderRadius: 10, overflow: 'hidden',
+                      border: '1.5px solid var(--accent5)', background: 'var(--surface3)',
+                    }}>
+                      <img src={preview} alt="Custom QR" style={{ width: '100%', maxHeight: 120, objectFit: 'cover', display: 'block' }} />
+                    </div>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <label style={{
+                        flex: 1, background: 'var(--surface3)', border: '1px solid var(--border)', borderRadius: 8,
+                        padding: '6px 0', fontSize: '0.7rem', fontWeight: 600, cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+                        color: 'var(--accent5)', transition: 'all 0.2s',
+                      }}>
+                        {'\u{1F504}'} Replace
+                        <input type="file" accept="image/jpeg,image/png,image/webp" onChange={e => handleQrSelect('custom', e)} style={{ display: 'none' }} />
+                      </label>
+                      <button
+                        onClick={() => handleQrRemove('custom')}
+                        style={{
+                          flex: 1, background: 'none', border: '1px solid rgba(255,107,107,0.3)', borderRadius: 8,
+                          padding: '6px 0', fontSize: '0.7rem', fontWeight: 600,
+                          cursor: 'pointer', color: 'var(--accent1)', transition: 'all 0.2s',
+                          fontFamily: 'Inter, sans-serif',
+                        }}
+                      >
+                        {'\u{1F5D1}'} Remove
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <label style={{
+                    background: 'var(--surface3)', border: '1.5px dashed var(--border)', borderRadius: 10,
+                    padding: '12px 12px', fontSize: '0.72rem', fontWeight: 600, cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                    color: 'var(--text2)', transition: 'all 0.2s',
+                  }}>
+                    {'\u{1F4F7}'} Upload QR
+                    <input type="file" accept="image/jpeg,image/png,image/webp" onChange={e => handleQrSelect('custom', e)} style={{ display: 'none' }} />
+                  </label>
+                );
+              })()}
+            </div>
+            <button
+              onClick={() => { setCustomForm(null); handleQrRemove('custom'); }}
+              style={{
+                marginTop: 10, width: '100%', background: 'none',
+                border: '1px solid rgba(255,107,107,0.3)', borderRadius: 8,
+                padding: '6px 0', fontSize: '0.7rem', fontWeight: 600,
+                cursor: 'pointer', color: 'var(--accent1)', transition: 'all 0.2s',
+                fontFamily: 'Inter, sans-serif',
+              }}
+            >
+              {'\u{1F5D1}'} Remove Custom
+            </button>
+          </div>
+        )}
       </div>
 
       <div style={{ display: 'flex', gap: 10 }}>
