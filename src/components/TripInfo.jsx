@@ -610,7 +610,7 @@ export default function TripInfo() {
                 {isAdmin && (
                   <div style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
                     <Btn small variant="danger" onClick={handleClearAll} disabled={clearing}>
-                      {clearing ? 'Clearing...' : 'Clear All Data'}
+                      {clearing ? 'Nuking...' : 'Nuke Data'}
                     </Btn>
                   </div>
                 )}
