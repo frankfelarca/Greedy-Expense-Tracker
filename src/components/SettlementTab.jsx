@@ -285,8 +285,9 @@ export default function SettlementTab({ currentUser }) {
           (exp.paidBy === currentUser || exp.splitAmong.includes(currentUser)),
       )
       .map((exp) => {
-        const share =
+        const perPerson =
           Math.round((exp.amount / exp.splitAmong.length) * 100) / 100;
+        const share = exp.splitAmong.includes(currentUser) ? perPerson : 0;
         return { ...exp, share, paidInfo: paidExpenses[exp.id] };
       });
   }, [currentUser, expenses, paidExpenses]);
