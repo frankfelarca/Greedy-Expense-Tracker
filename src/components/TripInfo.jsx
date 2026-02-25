@@ -463,7 +463,7 @@ export default function TripInfo() {
                   Travelers ({travelers.length}/{maxTravelers})
                 </CardTitle>
 
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+                <div className="invite-grid" style={{ marginBottom: 12 }}>
                   <AnimatePresence>
                     {travelers.map((t, i) => (
                       <motion.div
@@ -472,23 +472,17 @@ export default function TripInfo() {
                         initial={{ opacity: 0, scale: 0.8 }}
                         animate={{ opacity: 1, scale: 1 }}
                         exit={{ opacity: 0, scale: 0.8 }}
-                        style={{
-                          background: 'var(--surface2)',
-                          border: '1px solid var(--border)',
-                          borderRadius: 25,
-                          padding: '7px 14px',
-                          fontSize: '0.84rem',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 8,
-                        }}
+                        className="invite-card"
+                        style={{ flexDirection: 'row', justifyContent: 'space-between', textAlign: 'left' }}
                       >
-                        <span style={{ width: 12, height: 12, borderRadius: '50%', background: t.color, display: 'inline-block' }} />
-                        {t.name}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                          <span style={{ width: 12, height: 12, borderRadius: '50%', background: t.color, display: 'inline-block', flexShrink: 0 }} />
+                          <span style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.name}</span>
+                        </div>
                         {isAdmin && (
                           <button
                             onClick={() => handleRemove(i)}
-                            style={{ background: 'none', border: 'none', color: 'var(--accent1)', fontSize: '1rem', cursor: 'pointer', padding: '0 2px', lineHeight: 1 }}
+                            style={{ background: 'none', border: 'none', color: 'var(--accent1)', fontSize: '1.1rem', cursor: 'pointer', padding: '0 4px', lineHeight: 1, flexShrink: 0 }}
                           >
                             &times;
                           </button>
@@ -520,30 +514,24 @@ export default function TripInfo() {
                     }}>
                       {'\u{1F517}'} Invite Links
                     </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <div className="invite-grid">
                       {travelers.map(t => (
-                        <div key={t.name} style={{
-                          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                          padding: '6px 12px', borderRadius: 8,
-                          background: 'var(--surface2)', border: '1px solid var(--border)',
-                          fontSize: '0.8rem',
-                        }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <span style={{ width: 10, height: 10, borderRadius: '50%', background: t.color, display: 'inline-block' }} />
-                            <span style={{ fontWeight: 600 }}>{t.name}</span>
+                        <div key={t.name} className="invite-card">
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                            <span style={{ width: 10, height: 10, borderRadius: '50%', background: t.color, display: 'inline-block', flexShrink: 0 }} />
+                            <span style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.name}</span>
                           </div>
                           <button
                             onClick={() => copyInviteLink(t.name)}
                             disabled={!travelerHashes[t.name]}
+                            className="invite-copy-btn"
                             style={{
                               background: copiedHash === t.name ? 'rgba(67,233,123,0.15)' : 'var(--surface3)',
                               border: `1px solid ${copiedHash === t.name ? 'rgba(67,233,123,0.3)' : 'var(--border)'}`,
-                              borderRadius: 6, padding: '4px 10px', fontSize: '0.7rem',
-                              fontWeight: 600, cursor: 'pointer', color: copiedHash === t.name ? 'var(--green)' : 'var(--accent5)',
-                              fontFamily: 'Inter, sans-serif', transition: 'all 0.2s',
+                              color: copiedHash === t.name ? 'var(--green)' : 'var(--accent5)',
                             }}
                           >
-                            {copiedHash === t.name ? '\u2713 Copied' : '\u{1F4CB} Copy Link'}
+                            {copiedHash === t.name ? '\u2713 Copied' : '\u{1F4CB} Copy'}
                           </button>
                         </div>
                       ))}
