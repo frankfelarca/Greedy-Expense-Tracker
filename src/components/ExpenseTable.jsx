@@ -302,6 +302,7 @@ export default function ExpenseTable({ currentUser }) {
   const [filterCat, setFilterCat] = useState('');
   const [filterPayer, setFilterPayer] = useState('');
   const [filterSplit, setFilterSplit] = useState('');
+  const [filterLogger, setFilterLogger] = useState('');
   const [filterDateFrom, setFilterDateFrom] = useState('');
   const [filterDateTo, setFilterDateTo] = useState('');
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -310,8 +311,6 @@ export default function ExpenseTable({ currentUser }) {
   const { isAdmin, requireAdmin } = useAdmin();
   const isExpenseLocked = expenseLockDate && new Date(expenseLockDate) <= new Date() && !isAdmin;
   const [selected, setSelected] = useState([]);
-  const [sortCol, setSortCol] = useState(null);
-  const [sortDir, setSortDir] = useState('asc');
   const [receiptModal, setReceiptModal] = useState(null);
   const [editModal, setEditModal] = useState(null);
   const [pageSize, setPageSize] = useState(25);
@@ -336,37 +335,16 @@ export default function ExpenseTable({ currentUser }) {
     if (filterCat) result = result.filter(e => e.category === filterCat);
     if (filterPayer) result = result.filter(e => e.paidBy === filterPayer);
     if (filterSplit) result = result.filter(e => e.splitAmong.includes(filterSplit));
+    if (filterLogger) result = result.filter(e => e.loggedBy === filterLogger);
     if (filterDateFrom) result = result.filter(e => e.date >= filterDateFrom);
     if (filterDateTo) result = result.filter(e => e.date <= filterDateTo);
-    if (sortCol) {
-      result = [...result].sort((a, b) => {
-        let va = a[sortCol], vb = b[sortCol];
-        if (sortCol === 'amount') { va = Number(va); vb = Number(vb); }
-        else { va = String(va || '').toLowerCase(); vb = String(vb || '').toLowerCase(); }
-        if (va < vb) return sortDir === 'asc' ? -1 : 1;
-        if (va > vb) return sortDir === 'asc' ? 1 : -1;
-        return 0;
-      });
-    } else {
-      result = [...result].sort((a, b) => {
-        const va = a.loggedAt || '';
-        const vb = b.loggedAt || '';
-        return vb < va ? -1 : vb > va ? 1 : 0;
-      });
-    }
+    result = [...result].sort((a, b) => {
+      const va = a.loggedAt || '';
+      const vb = b.loggedAt || '';
+      return vb < va ? -1 : vb > va ? 1 : 0;
+    });
     return result;
-  }, [expenses, filterCat, filterPayer, filterSplit, filterDateFrom, filterDateTo, sortCol, sortDir]);
-
-  const toggleSort = (col) => {
-    if (sortCol === col) {
-      setSortDir(d => d === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortCol(col);
-      setSortDir('asc');
-    }
-  };
-
-  const sortIcon = (col) => sortCol === col ? (sortDir === 'asc' ? ' \u25B2' : ' \u25BC') : '';
+  }, [expenses, filterCat, filterPayer, filterSplit, filterLogger, filterDateFrom, filterDateTo]);
 
 
   const toggleSelect = (id) => {
@@ -445,9 +423,9 @@ export default function ExpenseTable({ currentUser }) {
     dispatch(toast('CSV exported!'));
   };
 
-  const hasFilters = !!(filterCat || filterPayer || filterSplit || filterDateFrom || filterDateTo);
-  const activeFilterCount = [filterCat, filterPayer, filterSplit, filterDateFrom, filterDateTo].filter(Boolean).length;
-  const clearFilters = () => { setFilterCat(''); setFilterPayer(''); setFilterSplit(''); setFilterDateFrom(''); setFilterDateTo(''); };
+  const hasFilters = !!(filterCat || filterPayer || filterSplit || filterLogger || filterDateFrom || filterDateTo);
+  const activeFilterCount = [filterCat, filterPayer, filterSplit, filterLogger, filterDateFrom, filterDateTo].filter(Boolean).length;
+  const clearFilters = () => { setFilterCat(''); setFilterPayer(''); setFilterSplit(''); setFilterLogger(''); setFilterDateFrom(''); setFilterDateTo(''); };
   const allFilteredSelected = filtered.length > 0 && filtered.every(e => selected.includes(e.id));
 
   return (
@@ -535,6 +513,13 @@ export default function ExpenseTable({ currentUser }) {
                     </select>
                   </div>
                   <div className="filter-field">
+                    <label className="filter-label">Logged By</label>
+                    <select value={filterLogger} onChange={e => setFilterLogger(e.target.value)}>
+                      <option value="">All travelers</option>
+                      {travelers.map(t => <option key={t.name} value={t.name}>{t.name}</option>)}
+                    </select>
+                  </div>
+                  <div className="filter-field">
                     <label className="filter-label">From</label>
                     <input type="date" value={filterDateFrom} onChange={e => setFilterDateFrom(e.target.value)} aria-label="From date" />
                   </div>
@@ -566,6 +551,11 @@ export default function ExpenseTable({ currentUser }) {
                     {filterSplit && (
                       <span className="filter-pill" onClick={() => setFilterSplit('')}>
                         Split with: {filterSplit} <span className="pill-x">&#10005;</span>
+                      </span>
+                    )}
+                    {filterLogger && (
+                      <span className="filter-pill" onClick={() => setFilterLogger('')}>
+                        Logged by: {filterLogger} <span className="pill-x">&#10005;</span>
                       </span>
                     )}
                     {filterDateFrom && (
@@ -609,11 +599,11 @@ export default function ExpenseTable({ currentUser }) {
                   <input type="checkbox" checked={allFilteredSelected} onChange={toggleSelectAll} style={{ width: 16, height: 16, cursor: 'pointer' }} aria-label="Select all" />
                 </th>
               )}
-              <th className="sortable" onClick={() => toggleSort('date')}>Date{sortIcon('date')}</th>
-              <th className="sortable" onClick={() => toggleSort('category')}>Category{sortIcon('category')}</th>
-              <th className="sortable" onClick={() => toggleSort('description')}>Description{sortIcon('description')}</th>
-              <th className="sortable" onClick={() => toggleSort('amount')} style={{ textAlign: 'right' }}>Amount{sortIcon('amount')}</th>
-              <th className="sortable" onClick={() => toggleSort('paidBy')}>Paid By{sortIcon('paidBy')}</th>
+              <th>Date</th>
+              <th>Category</th>
+              <th>Description</th>
+              <th style={{ textAlign: 'right' }}>Amount</th>
+              <th>Paid By</th>
               <th>Receipt</th>
               <th>Split</th>
               <th className="no-print">Actions</th>
@@ -628,12 +618,17 @@ export default function ExpenseTable({ currentUser }) {
                       <input type="checkbox" checked={selected.includes(exp.id)} onChange={() => toggleSelect(exp.id)} style={{ width: 16, height: 16, cursor: 'pointer' }} aria-label={`Select ${exp.description}`} />
                     </td>
                   )}
-                  {/* Date — desktop: merged with logged-by sub line */}
+                  {/* Date — desktop: 3 rows (expense date without year, log date, logger) */}
                   <td data-label="Date">
-                    <div>{exp.date}</div>
+                    <div>
+                      <span className="desktop-hide">{exp.date}</span>
+                      <span className="desktop-only">{(() => { if (!exp.date) return exp.date; const dt = new Date(exp.date + 'T00:00'); return dt.toLocaleString('en-PH', { month: 'short', day: 'numeric' }); })()}</span>
+                    </div>
                     <div className="desktop-sub">
                       {exp.loggedBy && <span>{exp.loggedBy}</span>}
-                      {exp.loggedAt && <span> &middot; {new Date(exp.loggedAt).toLocaleString('en-PH', { month: 'short', day: 'numeric' })}</span>}
+                    </div>
+                    <div className="desktop-sub">
+                      {exp.loggedAt && <span>{new Date(exp.loggedAt).toLocaleString('en-PH', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>}
                     </div>
                   </td>
                   <td data-label="Category"><Badge style={catStyles[exp.category]}>{CAT_ICONS[exp.category]} {CAT_LABELS[exp.category]}</Badge></td>

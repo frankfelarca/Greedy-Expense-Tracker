@@ -198,6 +198,7 @@ tr:hover td { background: var(--hover-row); }
 [data-theme="light"] .responsive-table tbody tr:nth-child(even) td { background: rgba(0,0,0,0.015); }
 
 .desktop-hide { display: none; }
+.desktop-only { display: inline; }
 .desktop-sub { display: block; font-size: 0.7rem; color: var(--text2); margin-top: 2px; }
 
 ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -356,6 +357,7 @@ tr:hover td { background: var(--hover-row); }
   th, td { padding: 8px 8px; }
 
   .desktop-hide { display: flex; }
+  .desktop-only { display: none; }
   .desktop-sub { display: none; }
 
   .responsive-table { border: none !important; }
