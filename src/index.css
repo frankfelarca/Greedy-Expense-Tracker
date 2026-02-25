@@ -211,6 +211,7 @@ tr:hover td { background: var(--hover-row); }
   border-radius: 6px; padding: 4px 10px; font-size: 0.7rem; width: 100%;
   font-weight: 600; cursor: pointer; font-family: Inter, sans-serif; transition: all 0.2s;
 }
+.invite-hint { display: none; }
 
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
@@ -376,7 +377,9 @@ tr:hover td { background: var(--hover-row); }
     flex-direction: row; justify-content: space-between; text-align: left;
     padding: 6px 10px; gap: 8px;
   }
-  .invite-copy-btn { width: auto; flex-shrink: 0; }
+  .invite-copy-btn { display: none; }
+  .invite-card { cursor: pointer; }
+  .invite-hint { display: block; }
 
   .responsive-table { border: none !important; }
   .responsive-table thead { display: none; }

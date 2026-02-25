@@ -516,13 +516,17 @@ export default function TripInfo() {
                     </div>
                     <div className="invite-grid">
                       {travelers.map(t => (
-                        <div key={t.name} className="invite-card">
+                        <div key={t.name} className="invite-card" onClick={() => copyInviteLink(t.name)}
+                          style={copiedHash === t.name ? { background: 'rgba(67,233,123,0.08)', borderColor: 'rgba(67,233,123,0.3)' } : undefined}
+                        >
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
                             <span style={{ width: 10, height: 10, borderRadius: '50%', background: t.color, display: 'inline-block', flexShrink: 0 }} />
-                            <span style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.name}</span>
+                            <span style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {copiedHash === t.name ? '\u2713 Copied' : t.name}
+                            </span>
                           </div>
                           <button
-                            onClick={() => copyInviteLink(t.name)}
+                            onClick={e => { e.stopPropagation(); copyInviteLink(t.name); }}
                             disabled={!travelerHashes[t.name]}
                             className="invite-copy-btn"
                             style={{
@@ -535,6 +539,9 @@ export default function TripInfo() {
                           </button>
                         </div>
                       ))}
+                    </div>
+                    <div className="invite-hint" style={{ fontSize: '0.65rem', color: 'var(--text2)', marginTop: 6, fontStyle: 'italic' }}>
+                      Tap a name to copy their invite link
                     </div>
                   </div>
                 )}
