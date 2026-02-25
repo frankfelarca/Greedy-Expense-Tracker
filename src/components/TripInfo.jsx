@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { motion, AnimatePresence } from 'framer-motion';
 import { setTripField, addTraveler, removeTraveler, clearAll, setExpenseLockDate } from '../store/tripSlice';
@@ -31,6 +31,8 @@ export default function TripInfo() {
   const [collapsed, setCollapsed] = useState(true);
   const [errors, setErrors] = useState({});
   const [clearing, setClearing] = useState(false);
+  const [nukeCountdown, setNukeCountdown] = useState(null);
+  const nukeTimerRef = useRef(null);
   const [lockDraft, setLockDraft] = useState('');
   const { countdown: lockCountdown } = useCountdownTo(expenseLockDate);
 
@@ -41,6 +43,8 @@ export default function TripInfo() {
   useEffect(() => {
     if (!dirty) setDraft({ tripName, tripDestination, tripStart, tripEnd, maxTravelers, numberOfCars });
   }, [tripName, tripDestination, tripStart, tripEnd, maxTravelers, numberOfCars, dirty]);
+
+  useEffect(() => () => clearInterval(nukeTimerRef.current), []);
 
   const validate = (field, value) => {
     switch (field) {
@@ -169,39 +173,60 @@ export default function TripInfo() {
     });
   };
 
-  const handleClearAll = () => {
-    requireAdmin(async () => {
-      if (!confirm('This will permanently delete ALL data from the cloud database and storage. This cannot be undone. Are you sure?')) return;
-      if (!confirm('FINAL WARNING: All expenses, travelers, receipts, and trip data will be permanently deleted. Continue?')) return;
-      setClearing(true);
-      try {
-        await remove(ref(db, DATA_PATH));
+  const executeNuke = async () => {
+    setClearing(true);
+    try {
+      await remove(ref(db, DATA_PATH));
 
-        if (syncConfig.account && syncConfig.sasToken) {
-          const listUrl = `https://${syncConfig.account}.blob.core.windows.net/${CONTAINER}?restype=container&comp=list${syncConfig.sasToken.startsWith('?') ? '&' + syncConfig.sasToken.slice(1) : syncConfig.sasToken}`;
-          try {
-            const listResp = await fetch(listUrl);
-            if (listResp.ok) {
-              const text = await listResp.text();
-              const blobNames = [...text.matchAll(/<Name>([^<]+)<\/Name>/g)].map(m => m[1]);
-              for (const name of blobNames) {
-                const deleteUrl = `https://${syncConfig.account}.blob.core.windows.net/${CONTAINER}/${name}${syncConfig.sasToken}`;
-                await fetch(deleteUrl, { method: 'DELETE' }).catch(() => {});
-              }
+      if (syncConfig.account && syncConfig.sasToken) {
+        const listUrl = `https://${syncConfig.account}.blob.core.windows.net/${CONTAINER}?restype=container&comp=list${syncConfig.sasToken.startsWith('?') ? '&' + syncConfig.sasToken.slice(1) : syncConfig.sasToken}`;
+        try {
+          const listResp = await fetch(listUrl);
+          if (listResp.ok) {
+            const text = await listResp.text();
+            const blobNames = [...text.matchAll(/<Name>([^<]+)<\/Name>/g)].map(m => m[1]);
+            for (const name of blobNames) {
+              const deleteUrl = `https://${syncConfig.account}.blob.core.windows.net/${CONTAINER}/${name}${syncConfig.sasToken}`;
+              await fetch(deleteUrl, { method: 'DELETE' }).catch(() => {});
             }
-          } catch (e) {
-            console.error('Storage cleanup error:', e);
           }
+        } catch (e) {
+          console.error('Storage cleanup error:', e);
         }
-
-        dispatch(clearAll());
-        dispatch(toast('All data cleared from cloud and storage.'));
-      } catch (e) {
-        console.error('Clear all error:', e);
-        dispatch(toast('Failed to clear data.', 'error'));
       }
-      setClearing(false);
+
+      dispatch(clearAll());
+      dispatch(toast('All data has been nuked.'));
+    } catch (e) {
+      console.error('Nuke error:', e);
+      dispatch(toast('Nuke failed. Some data may have survived.', 'error'));
+    }
+    setClearing(false);
+  };
+
+  const handleClearAll = () => {
+    if (nukeCountdown !== null || clearing) return;
+    requireAdmin(async () => {
+      if (!confirm('You are about to nuke everything \u2014 all expenses, travelers, receipts, and trip data will be vaporized from the cloud. This cannot be undone.')) return;
+      if (!confirm('FINAL WARNING: There is no coming back from this. Nuke it all?')) return;
+      setNukeCountdown(10);
+      nukeTimerRef.current = setInterval(() => {
+        setNukeCountdown(prev => {
+          if (prev <= 1) {
+            clearInterval(nukeTimerRef.current);
+            executeNuke();
+            return null;
+          }
+          return prev - 1;
+        });
+      }, 1000);
     });
+  };
+
+  const cancelNuke = () => {
+    clearInterval(nukeTimerRef.current);
+    setNukeCountdown(null);
+    dispatch(toast('Nuke aborted. Data lives to see another day.'));
   };
 
   const summaryParts = [
@@ -609,9 +634,37 @@ export default function TripInfo() {
                 )}
                 {isAdmin && (
                   <div style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
-                    <Btn small variant="danger" onClick={handleClearAll} disabled={clearing}>
-                      {clearing ? 'Nuking...' : 'Nuke Data'}
-                    </Btn>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                      <Btn small variant="danger" onClick={handleClearAll} disabled={clearing || nukeCountdown !== null}>
+                        {clearing ? (
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                            <motion.span
+                              animate={{ scale: [1, 1.6, 1], opacity: [1, 0.6, 1], rotate: [0, 15, -15, 0] }}
+                              transition={{ duration: 0.8, repeat: Infinity }}
+                              style={{ display: 'inline-block', fontSize: '1rem' }}
+                            >
+                              {'\u2622\uFE0F'}
+                            </motion.span>
+                            Nuking...
+                          </span>
+                        ) : nukeCountdown !== null ? (
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                            <motion.span
+                              animate={{ scale: [1, 1.6, 1], opacity: [1, 0.6, 1], rotate: [0, 15, -15, 0] }}
+                              transition={{ duration: 0.8, repeat: Infinity }}
+                              style={{ display: 'inline-block', fontSize: '1rem' }}
+                            >
+                              {'\u2622\uFE0F'}
+                            </motion.span>
+                            Nuking in {nukeCountdown}...
+                          </span>
+                        ) : '\u2622\uFE0F Nuke Data'}
+                      </Btn>
+                      {nukeCountdown !== null && !clearing && (
+                        <Btn small variant="danger" onClick={cancelNuke}>Cancel</Btn>
+                      )}
+                    </span>
+
                   </div>
                 )}
               </div>
