@@ -310,7 +310,6 @@ export default function ExpenseTable({ currentUser }) {
   const expenseLockDate = useSelector(s => s.trip.expenseLockDate);
   const { isAdmin, requireAdmin } = useAdmin();
   const isExpenseLocked = expenseLockDate && new Date(expenseLockDate) <= new Date() && !isAdmin;
-  const [selected, setSelected] = useState([]);
   const [receiptModal, setReceiptModal] = useState(null);
   const [editModal, setEditModal] = useState(null);
   const [pageSize, setPageSize] = useState(25);
@@ -347,30 +346,7 @@ export default function ExpenseTable({ currentUser }) {
   }, [expenses, filterCat, filterPayer, filterSplit, filterLogger, filterDateFrom, filterDateTo]);
 
 
-  const toggleSelect = (id) => {
-    setSelected(prev => prev.includes(id) ? prev.filter(s => s !== id) : [...prev, id]);
-  };
-
-  const toggleSelectAll = () => {
-    const allIds = filtered.map(e => e.id);
-    const allSelected = allIds.every(id => selected.includes(id));
-    setSelected(allSelected ? selected.filter(id => !allIds.includes(id)) : [...new Set([...selected, ...allIds])]);
-  };
-
   const canModify = (exp) => !isExpenseLocked && (isAdmin || (currentUser && exp.loggedBy === currentUser));
-
-  const handleDeleteSelected = () => {
-    requireAdmin(() => {
-      if (selected.length === 0) {
-        dispatch(toast('No expenses selected.', 'error'));
-        return;
-      }
-      if (!confirm(`Delete ${selected.length} expense(s)?`)) return;
-      selected.forEach(id => dispatch(deleteExpense(id)));
-      dispatch(toast(`${selected.length} expense(s) deleted.`));
-      setSelected([]);
-    });
-  };
 
   const handleEdit = (exp) => {
     if (isExpenseLocked) { dispatch(toast('Expenses are locked for settlement.', 'error')); return; }
@@ -426,8 +402,6 @@ export default function ExpenseTable({ currentUser }) {
   const hasFilters = !!(filterCat || filterPayer || filterSplit || filterLogger || filterDateFrom || filterDateTo);
   const activeFilterCount = [filterCat, filterPayer, filterSplit, filterLogger, filterDateFrom, filterDateTo].filter(Boolean).length;
   const clearFilters = () => { setFilterCat(''); setFilterPayer(''); setFilterSplit(''); setFilterLogger(''); setFilterDateFrom(''); setFilterDateTo(''); };
-  const allFilteredSelected = filtered.length > 0 && filtered.every(e => selected.includes(e.id));
-
   return (
     <Card>
       <div className="no-print expense-toolbar" style={{
@@ -459,9 +433,6 @@ export default function ExpenseTable({ currentUser }) {
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div className="toolbar-actions-top" style={{ display: 'none', gap: 6 }}>
-              {isAdmin && selected.length > 0 && (
-                <Btn small variant="danger" onClick={(e) => { e.stopPropagation(); handleDeleteSelected(); }}>{'\u{1F5D1}'} Delete ({selected.length})</Btn>
-              )}
               <button onClick={(e) => { e.stopPropagation(); exportCSV(); }} className="toolbar-btn" style={{ background: 'var(--surface3)', border: '1px solid var(--border)', borderRadius: 8, padding: '6px 14px', fontSize: '0.76rem', fontWeight: 600, color: 'var(--accent2)', cursor: 'pointer', fontFamily: 'Inter, sans-serif', display: 'inline-flex', alignItems: 'center', gap: 5, transition: 'all 0.2s' }}>
                 {'\u{1F4E5}'} CSV
               </button>
@@ -572,9 +543,6 @@ export default function ExpenseTable({ currentUser }) {
                 )}
 
                 <div className="toolbar-actions-bottom" style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap', alignItems: 'center' }}>
-                  {isAdmin && selected.length > 0 && (
-                    <Btn small variant="danger" onClick={handleDeleteSelected}>{'\u{1F5D1}'} Delete ({selected.length})</Btn>
-                  )}
                   <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
                     <button onClick={exportCSV} className="toolbar-btn" style={{ background: 'var(--surface3)', border: '1px solid var(--border)', borderRadius: 8, padding: '7px 14px', fontSize: '0.78rem', fontWeight: 600, color: 'var(--accent2)', cursor: 'pointer', fontFamily: 'Inter, sans-serif', display: 'inline-flex', alignItems: 'center', gap: 6, transition: 'all 0.2s' }}>
                       {'\u{1F4E5}'} Export CSV
@@ -594,11 +562,6 @@ export default function ExpenseTable({ currentUser }) {
         <table className="responsive-table">
           <thead>
             <tr>
-              {isAdmin && (
-                <th className="no-print" style={{ width: 36 }}>
-                  <input type="checkbox" checked={allFilteredSelected} onChange={toggleSelectAll} style={{ width: 16, height: 16, cursor: 'pointer' }} aria-label="Select all" />
-                </th>
-              )}
               <th>Date</th>
               <th>Category</th>
               <th>Description</th>
@@ -612,12 +575,7 @@ export default function ExpenseTable({ currentUser }) {
           <tbody>
             {filtered.slice(0, pageSize).map((exp, fi) => {
               return (
-                <tr key={exp.id || fi} style={{ background: selected.includes(exp.id) ? 'rgba(255,107,107,0.08)' : paidExpenses[exp.id] ? 'rgba(67,233,123,0.04)' : undefined, ...(paidExpenses[exp.id] ? { borderLeft: '3px solid var(--green)' } : {}) }}>
-                  {isAdmin && (
-                    <td className="no-print" data-label="">
-                      <input type="checkbox" checked={selected.includes(exp.id)} onChange={() => toggleSelect(exp.id)} style={{ width: 16, height: 16, cursor: 'pointer' }} aria-label={`Select ${exp.description}`} />
-                    </td>
-                  )}
+                <tr key={exp.id || fi} style={{ background: paidExpenses[exp.id] ? 'rgba(67,233,123,0.04)' : undefined, ...(paidExpenses[exp.id] ? { borderLeft: '3px solid var(--green)' } : {}) }}>
                   {/* Date — desktop: 3 rows (expense date without year, log date, logger) */}
                   <td data-label="Date">
                     <div>
