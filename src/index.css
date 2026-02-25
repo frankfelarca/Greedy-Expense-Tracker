@@ -161,7 +161,12 @@ table {
   font-size: 0.84rem;
 }
 
-thead { background: var(--surface3); }
+thead {
+  background: var(--surface3);
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
 
 th {
   padding: 12px 14px;
@@ -174,6 +179,13 @@ th {
   white-space: nowrap;
 }
 
+th.sortable {
+  cursor: pointer;
+  user-select: none;
+  transition: color 0.15s;
+}
+th.sortable:hover { color: var(--accent5); }
+
 td {
   padding: 10px 14px;
   border-top: 1px solid var(--border);
@@ -181,6 +193,12 @@ td {
 }
 
 tr:hover td { background: var(--hover-row); }
+
+.responsive-table tbody tr:nth-child(even) td { background: rgba(255,255,255,0.01); }
+[data-theme="light"] .responsive-table tbody tr:nth-child(even) td { background: rgba(0,0,0,0.015); }
+
+.desktop-hide { display: none; }
+.desktop-sub { display: block; font-size: 0.7rem; color: var(--text2); margin-top: 2px; }
 
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
@@ -324,6 +342,9 @@ tr:hover td { background: var(--hover-row); }
   table { font-size: 0.78rem; }
   th, td { padding: 8px 8px; }
 
+  .desktop-hide { display: flex; }
+  .desktop-sub { display: none; }
+
   .responsive-table { border: none !important; }
   .responsive-table thead { display: none; }
   .responsive-table tbody { display: flex; flex-direction: column; gap: 10px; }
@@ -336,10 +357,7 @@ tr:hover td { background: var(--hover-row); }
     padding: 14px 16px;
     background: var(--surface2);
     position: relative;
-    transition: border-color 0.2s;
-  }
-  .responsive-table tr:active {
-    border-color: var(--accent5);
+    -webkit-tap-highlight-color: transparent;
   }
   .responsive-table td {
     display: flex;
@@ -364,6 +382,9 @@ tr:hover td { background: var(--hover-row); }
     font-weight: 600;
     font-size: 0.92rem;
     padding-bottom: 6px;
+    padding-right: 110px;
+    word-break: break-word;
+    overflow-wrap: anywhere;
   }
   .responsive-table td[data-label="Description"]::before {
     display: none;
@@ -427,9 +448,6 @@ tr:hover td { background: var(--hover-row); }
   .responsive-table td[data-label="Actions"] { display: none !important; }
   .inline-actions { display: flex !important; }
 
-  .responsive-table td[data-label="#"] {
-    display: none;
-  }
   .responsive-table td[data-label=""] {
     position: absolute;
     top: 14px;

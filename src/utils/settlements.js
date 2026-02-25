@@ -1,14 +1,18 @@
-export function computeBalances(expenses, travelers, paidExpenses, excludedExpenses) {
+const CAR_CATEGORIES = ['parking', 'toll', 'fuel'];
+
+export function computeBalances(expenses, travelers, paidExpenses, numberOfCars) {
   const personPaid = {};
   const personShare = {};
   travelers.forEach(t => { personPaid[t.name] = 0; personShare[t.name] = 0; });
+  const allNames = travelers.map(t => t.name);
   expenses.forEach(exp => {
     const isPaid = paidExpenses && paidExpenses[exp.id];
-    const isExcluded = excludedExpenses && excludedExpenses[exp.id];
-    if (!isPaid && !isExcluded) {
+    if (!isPaid) {
       if (personPaid[exp.paidBy] !== undefined) personPaid[exp.paidBy] += exp.amount;
-      const share = Math.round((exp.amount / exp.splitAmong.length) * 100) / 100;
-      exp.splitAmong.forEach(name => {
+      const isCarExpense = numberOfCars > 0 && CAR_CATEGORIES.includes(exp.category);
+      const splitList = isCarExpense ? allNames : exp.splitAmong;
+      const share = Math.round((exp.amount / splitList.length) * 100) / 100;
+      splitList.forEach(name => {
         if (personShare[name] !== undefined) personShare[name] += share;
       });
     }

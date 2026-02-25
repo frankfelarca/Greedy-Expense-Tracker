@@ -4,9 +4,11 @@ import { motion } from 'framer-motion';
 import { CAT_LABELS, CAT_ICONS } from '../utils/constants';
 import { formatNum } from '../utils/helpers';
 import { computeBalances, computeSettlements } from '../utils/settlements';
-import { Card, CardTitle } from './UI';
+import { Card, CardTitle, Btn } from './UI';
+import { exportPdf } from '../utils/exportPdf';
 
-const catColors = { hotel: '#ff6b6b', meals: '#feca57', alcohol: '#ff9ff3', fuel: '#48dbfb', toll: '#a18cd1', entrance: '#54a0ff', others: '#8888aa' };
+const catColors = { hotel: '#ff6b6b', meals: '#feca57', alcohol: '#ff9ff3', fuel: '#48dbfb', toll: '#a18cd1', parking: '#a18cd1', entrance: '#54a0ff', others: '#8888aa' };
+const CAR_CATEGORIES = ['parking', 'toll', 'fuel'];
 
 const stagger = { hidden: {}, visible: { transition: { staggerChildren: 0.05 } } };
 const fadeUp = { hidden: { opacity: 0, y: 12 }, visible: { opacity: 1, y: 0, transition: { duration: 0.3 } } };
@@ -14,9 +16,18 @@ const fadeUp = { hidden: { opacity: 0, y: 12 }, visible: { opacity: 1, y: 0, tra
 export default function SummaryTab({ currentUser }) {
   const expenses = useSelector(s => s.trip.expenses);
   const travelers = useSelector(s => s.trip.travelers);
+  const trip = useSelector(s => ({
+    tripName: s.trip.tripName,
+    tripDestination: s.trip.tripDestination,
+    tripStart: s.trip.tripStart,
+    tripEnd: s.trip.tripEnd,
+  }));
+  const paidExpenses = useSelector(s => s.trip.paidExpenses);
+  const paidSettlements = useSelector(s => s.trip.paidSettlements);
+  const numberOfCars = useSelector(s => s.trip.numberOfCars) || 0;
 
   const { personPaid, personShare, balances: balanceRanking } = useMemo(
-    () => computeBalances(expenses, travelers), [expenses, travelers]
+    () => computeBalances(expenses, travelers, null, numberOfCars), [expenses, travelers, numberOfCars]
   );
 
   const settlements = useMemo(
@@ -216,6 +227,75 @@ export default function SummaryTab({ currentUser }) {
             </motion.div>
           ))}
         </motion.div>
+
+        {count > 0 && (
+          <motion.div variants={fadeUp} style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 4 }}>
+            <Btn
+              onClick={() => exportPdf({ trip, expenses, travelers, paidExpenses, paidSettlements, numberOfCars })}
+              style={{ fontSize: '0.82rem' }}
+            >
+              Export PDF
+            </Btn>
+          </motion.div>
+        )}
+
+        {/* Car Expenses */}
+        {(() => {
+          const carExpenses = expenses.filter(e => CAR_CATEGORIES.includes(e.category));
+          const carTotal = carExpenses.reduce((s, e) => s + e.amount, 0);
+          const carByCategory = {};
+          carExpenses.forEach(e => { carByCategory[e.category] = (carByCategory[e.category] || 0) + e.amount; });
+          const showCard = numberOfCars > 0 && carTotal > 0;
+          return (
+            <motion.div variants={fadeUp}>
+              {numberOfCars > 0 && (
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12,
+                  padding: '8px 14px', borderRadius: 12,
+                  background: 'var(--surface)', border: '1px solid var(--border)',
+                  fontSize: '0.78rem', color: 'var(--text2)',
+                }}>
+                  {'\u{1F697}'} {numberOfCars} car{numberOfCars !== 1 ? 's' : ''} &mdash; parking, toll &amp; fuel split among all travelers
+                </div>
+              )}
+              {showCard && (
+                <Card>
+                  <CardTitle icon={'\u{1F697}'} gradient="var(--gradient3)">Car Expenses</CardTitle>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10, marginBottom: 14 }}>
+                    <div style={{ background: 'var(--surface2)', borderRadius: 10, padding: '12px 14px', border: '1px solid var(--border)' }}>
+                      <div style={{ fontSize: '0.62rem', color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: 0.8, fontWeight: 600 }}>Total</div>
+                      <div style={{ fontSize: '1.1rem', fontWeight: 800, marginTop: 2 }}>{'\u20B1'}{formatNum(carTotal)}</div>
+                    </div>
+                    <div style={{ background: 'var(--surface2)', borderRadius: 10, padding: '12px 14px', border: '1px solid var(--border)' }}>
+                      <div style={{ fontSize: '0.62rem', color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: 0.8, fontWeight: 600 }}>Per Car</div>
+                      <div style={{ fontSize: '1.1rem', fontWeight: 800, marginTop: 2, color: 'var(--accent3)' }}>{'\u20B1'}{formatNum(carTotal / numberOfCars)}</div>
+                    </div>
+                    <div style={{ background: 'var(--surface2)', borderRadius: 10, padding: '12px 14px', border: '1px solid var(--border)' }}>
+                      <div style={{ fontSize: '0.62rem', color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: 0.8, fontWeight: 600 }}>Per Person</div>
+                      <div style={{ fontSize: '1.1rem', fontWeight: 800, marginTop: 2, color: 'var(--accent5)' }}>{'\u20B1'}{formatNum(travelerCount > 0 ? carTotal / travelerCount : 0)}</div>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {CAR_CATEGORIES.map(cat => {
+                      const amt = carByCategory[cat] || 0;
+                      if (amt <= 0) return null;
+                      const color = catColors[cat] || 'var(--accent5)';
+                      return (
+                        <div key={cat} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', borderRadius: 8, background: 'var(--surface2)', border: '1px solid var(--border)' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span style={{ fontSize: '0.9rem' }}>{CAT_ICONS[cat]}</span>
+                            <span style={{ fontSize: '0.82rem', fontWeight: 600 }}>{CAT_LABELS[cat]}</span>
+                          </div>
+                          <span style={{ fontSize: '0.88rem', fontWeight: 700, color }}>{'\u20B1'}{formatNum(amt)}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </Card>
+              )}
+            </motion.div>
+          );
+        })()}
 
         {count > 0 && (
           <motion.div variants={fadeUp}>

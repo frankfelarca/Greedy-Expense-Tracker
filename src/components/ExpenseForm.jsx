@@ -13,6 +13,7 @@ import { Card, Btn, FormGroup, Spinner } from './UI';
 export default function ExpenseForm({ currentUser }) {
   const dispatch = useDispatch();
   const travelers = useSelector(s => s.trip.travelers);
+  const numberOfCars = useSelector(s => s.trip.numberOfCars) || 0;
   const expenseLockDate = useSelector(s => s.trip.expenseLockDate);
   const syncConfig = useSelector(s => s.sync);
   const { isAdmin } = useAdmin();
@@ -45,7 +46,18 @@ export default function ExpenseForm({ currentUser }) {
     });
   }, [currentUser]);
 
-  const set = (field, value) => setForm(prev => ({ ...prev, [field]: value }));
+  const CAR_CATS = ['parking', 'toll', 'fuel'];
+  const isCarPooled = numberOfCars > 0 && CAR_CATS.includes(form.category);
+
+  const set = (field, value) => {
+    setForm(prev => {
+      const next = { ...prev, [field]: value };
+      if (field === 'category' && numberOfCars > 0 && CAR_CATS.includes(value)) {
+        next.splitAmong = travelers.map(t => t.name);
+      }
+      return next;
+    });
+  };
 
   const toggleSplit = (name) => {
     setForm(prev => ({
@@ -279,41 +291,52 @@ export default function ExpenseForm({ currentUser }) {
                     Shared Among ({form.splitAmong.length}/{travelers.length})
                     <span style={{ color: 'var(--accent1)', marginLeft: 2 }}>*</span>
                   </div>
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    <button
-                      onClick={() => setForm(prev => ({ ...prev, splitAmong: travelers.map(t => t.name) }))}
-                      style={{
-                        background: 'none', border: '1px solid var(--border)', borderRadius: 6,
-                        color: 'var(--accent3)', fontSize: '0.7rem', fontWeight: 600,
-                        padding: '4px 10px', cursor: 'pointer', fontFamily: 'Inter, sans-serif',
-                      }}
-                    >
-                      All
-                    </button>
-                    {currentUser && (
+                  {!isCarPooled && (
+                    <div style={{ display: 'flex', gap: 6 }}>
                       <button
-                        onClick={() => setForm(prev => ({ ...prev, splitAmong: [currentUser] }))}
+                        onClick={() => setForm(prev => ({ ...prev, splitAmong: travelers.map(t => t.name) }))}
                         style={{
                           background: 'none', border: '1px solid var(--border)', borderRadius: 6,
-                          color: 'var(--accent5)', fontSize: '0.7rem', fontWeight: 600,
+                          color: 'var(--accent3)', fontSize: '0.7rem', fontWeight: 600,
                           padding: '4px 10px', cursor: 'pointer', fontFamily: 'Inter, sans-serif',
                         }}
                       >
-                        Only Me
+                        All
                       </button>
-                    )}
-                    <button
-                      onClick={() => setForm(prev => ({ ...prev, splitAmong: [] }))}
-                      style={{
-                        background: 'none', border: '1px solid var(--border)', borderRadius: 6,
-                        color: 'var(--text2)', fontSize: '0.7rem', fontWeight: 600,
-                        padding: '4px 10px', cursor: 'pointer', fontFamily: 'Inter, sans-serif',
-                      }}
-                    >
-                      None
-                    </button>
-                  </div>
+                      {currentUser && (
+                        <button
+                          onClick={() => setForm(prev => ({ ...prev, splitAmong: [currentUser] }))}
+                          style={{
+                            background: 'none', border: '1px solid var(--border)', borderRadius: 6,
+                            color: 'var(--accent5)', fontSize: '0.7rem', fontWeight: 600,
+                            padding: '4px 10px', cursor: 'pointer', fontFamily: 'Inter, sans-serif',
+                          }}
+                        >
+                          Only Me
+                        </button>
+                      )}
+                      <button
+                        onClick={() => setForm(prev => ({ ...prev, splitAmong: [] }))}
+                        style={{
+                          background: 'none', border: '1px solid var(--border)', borderRadius: 6,
+                          color: 'var(--text2)', fontSize: '0.7rem', fontWeight: 600,
+                          padding: '4px 10px', cursor: 'pointer', fontFamily: 'Inter, sans-serif',
+                        }}
+                      >
+                        None
+                      </button>
+                    </div>
+                  )}
                 </div>
+                {isCarPooled && (
+                  <div style={{
+                    marginBottom: 10, padding: '8px 12px', borderRadius: 8,
+                    background: 'rgba(72,219,251,0.06)', border: '1px solid rgba(72,219,251,0.15)',
+                    fontSize: '0.72rem', color: 'var(--text2)',
+                  }}>
+                    {'\u{1F697}'} Car pooling is active &mdash; this expense is automatically split among all travelers.
+                  </div>
+                )}
 
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                   {travelers.map(t => {
@@ -321,12 +344,13 @@ export default function ExpenseForm({ currentUser }) {
                     return (
                       <motion.label
                         key={t.name}
-                        whileTap={{ scale: 0.95 }}
+                        whileTap={isCarPooled ? {} : { scale: 0.95 }}
                         style={{
                           display: 'flex', alignItems: 'center', gap: 6,
                           background: selected ? 'rgba(84,160,255,0.12)' : 'var(--surface3)',
                           border: `1.5px solid ${selected ? 'var(--accent5)' : 'transparent'}`,
-                          borderRadius: 20, padding: '6px 12px', cursor: 'pointer', fontSize: '0.8rem',
+                          borderRadius: 20, padding: '6px 12px', cursor: isCarPooled ? 'default' : 'pointer', fontSize: '0.8rem',
+                          ...(isCarPooled ? { opacity: 0.6 } : {}),
                           transition: 'all 0.15s',
                           boxShadow: selected ? '0 0 12px rgba(84,160,255,0.15)' : 'none',
                         }}
@@ -344,7 +368,8 @@ export default function ExpenseForm({ currentUser }) {
                         <input
                           type="checkbox"
                           checked={selected}
-                          onChange={() => { toggleSplit(t.name); setErrors(p => ({ ...p, splitAmong: undefined })); }}
+                          disabled={isCarPooled}
+                          onChange={() => { if (!isCarPooled) { toggleSplit(t.name); setErrors(p => ({ ...p, splitAmong: undefined })); } }}
                           style={{ display: 'none' }}
                         />
                         <span style={{ fontWeight: selected ? 600 : 400, color: selected ? 'var(--text)' : 'var(--text2)' }}>

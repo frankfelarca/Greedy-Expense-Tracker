@@ -23,8 +23,9 @@ const defaultState = {
   paymentInfo: {},
   paidSettlements: {},
   paidExpenses: {},
-  excludedExpenses: {},
   proofOfPayment: {},
+  partialPayments: {},
+  numberOfCars: 0,
   expenseLockDate: null,
   _deleted: [],
   maxTravelers: 10,
@@ -162,14 +163,6 @@ const tripSlice = createSlice({
     unmarkExpensePaid(state, action) {
       if (state.paidExpenses) delete state.paidExpenses[action.payload];
     },
-    excludeExpense(state, action) {
-      const { expenseId, excludedBy, note } = action.payload;
-      if (!state.excludedExpenses) state.excludedExpenses = {};
-      state.excludedExpenses[expenseId] = { excludedBy: sanitize(excludedBy), note: sanitize(note || ''), at: now() };
-    },
-    includeExpense(state, action) {
-      if (state.excludedExpenses) delete state.excludedExpenses[action.payload];
-    },
     setProofOfPayment(state, action) {
       const { settlementKey, path, uploadedBy } = action.payload;
       if (!state.proofOfPayment) state.proofOfPayment = {};
@@ -182,7 +175,7 @@ const tripSlice = createSlice({
       state.expenseLockDate = action.payload || null;
     },
     declineProofOfPayment(state, action) {
-      const { settlementKey, declinedBy, reason } = action.payload;
+      const { settlementKey, declinedBy, reason, amountReceived } = action.payload;
       if (!state.proofOfPayment) state.proofOfPayment = {};
       const existing = state.proofOfPayment[settlementKey];
       state.proofOfPayment[settlementKey] = {
@@ -192,7 +185,12 @@ const tripSlice = createSlice({
         declinedBy: sanitize(declinedBy),
         declineReason: sanitize(reason || ''),
         declinedAt: now(),
+        amountReceived: amountReceived > 0 ? amountReceived : undefined,
       };
+      if (amountReceived > 0) {
+        if (!state.partialPayments) state.partialPayments = {};
+        state.partialPayments[settlementKey] = (state.partialPayments[settlementKey] || 0) + amountReceived;
+      }
     },
     loadCloudState(state, action) {
       const cloud = action.payload;
@@ -238,10 +236,11 @@ const tripSlice = createSlice({
       state.paymentInfo = (cloud.paymentInfo && typeof cloud.paymentInfo === 'object') ? cloud.paymentInfo : {};
       state.paidSettlements = (cloud.paidSettlements && typeof cloud.paidSettlements === 'object') ? cloud.paidSettlements : {};
       state.paidExpenses = (cloud.paidExpenses && typeof cloud.paidExpenses === 'object') ? cloud.paidExpenses : {};
-      state.excludedExpenses = (cloud.excludedExpenses && typeof cloud.excludedExpenses === 'object') ? cloud.excludedExpenses : {};
       state.proofOfPayment = (cloud.proofOfPayment && typeof cloud.proofOfPayment === 'object') ? cloud.proofOfPayment : {};
+      state.partialPayments = (cloud.partialPayments && typeof cloud.partialPayments === 'object') ? cloud.partialPayments : {};
       state._deleted = safeArray(cloud._deleted).slice(-500);
       state.maxTravelers = safeNum(cloud.maxTravelers, defaultState.maxTravelers);
+      state.numberOfCars = safeNum(cloud.numberOfCars, defaultState.numberOfCars);
       state.expenseLockDate = safeStr(cloud.expenseLockDate, defaultState.expenseLockDate);
     },
     clearAll() {
@@ -258,7 +257,6 @@ export const {
   restoreExpense, restoreHotelPayment, restoreDpCollection,
   setQrCode, setPaymentInfo,
   markSettlementPaid, unmarkSettlementPaid, markExpensePaid, unmarkExpensePaid,
-  excludeExpense, includeExpense,
   setProofOfPayment, removeProofOfPayment, declineProofOfPayment,
   setExpenseLockDate,
   loadCloudState, clearAll,

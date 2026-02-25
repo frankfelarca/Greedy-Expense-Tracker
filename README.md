@@ -29,7 +29,6 @@ A shared travel expense tracker for group trips. Built with React, Redux Toolkit
 ## Setup
 
 ```bash
-cd app
 npm install
 ```
 
@@ -119,7 +118,7 @@ Each user gets a unique URL with a `?u=` hash token derived from their name + sa
 ## Project Structure
 
 ```
-app/src/
+src/
   components/     UI components
   store/          Redux slices (trip, toast, sync, admin)
   hooks/          useAdmin, useOnline, useTheme

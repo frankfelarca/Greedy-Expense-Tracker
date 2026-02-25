@@ -6,7 +6,7 @@ import tripReducer, {
   addDpCollections, deleteDpCollection,
   restoreExpense, restoreHotelPayment, restoreDpCollection,
   setQrCode, setPaymentInfo, loadCloudState, clearAll,
-  excludeExpense, includeExpense,
+  markExpensePaid, unmarkExpensePaid,
   setProofOfPayment, removeProofOfPayment, declineProofOfPayment,
   markSettlementPaid, unmarkSettlementPaid,
   setExpenseLockDate,
@@ -405,29 +405,31 @@ describe('tripSlice', () => {
     });
   });
 
-  describe('excludeExpense / includeExpense', () => {
-    it('excludes an expense', () => {
-      state = tripReducer(state, excludeExpense({ expenseId: 'e1', excludedBy: 'Admin' }));
-      expect(state.excludedExpenses.e1).toBeDefined();
-      expect(state.excludedExpenses.e1.excludedBy).toBe('Admin');
+  describe('markExpensePaid / unmarkExpensePaid', () => {
+    it('marks an expense as paid', () => {
+      state = tripReducer(state, markExpensePaid({ expenseId: 'e1', confirmedBy: 'Alice', date: '2026-01-15' }));
+      expect(state.paidExpenses.e1).toBeDefined();
+      expect(state.paidExpenses.e1.confirmedBy).toBe('Alice');
+      expect(state.paidExpenses.e1.date).toBe('2026-01-15');
+      expect(state.paidExpenses.e1.at).toBeDefined();
     });
 
-    it('includes a previously excluded expense', () => {
-      state = tripReducer(state, excludeExpense({ expenseId: 'e1', excludedBy: 'Admin' }));
-      state = tripReducer(state, includeExpense('e1'));
-      expect(state.excludedExpenses.e1).toBeUndefined();
+    it('unmarks a previously paid expense', () => {
+      state = tripReducer(state, markExpensePaid({ expenseId: 'e1', confirmedBy: 'Alice', date: '2026-01-15' }));
+      state = tripReducer(state, unmarkExpensePaid('e1'));
+      expect(state.paidExpenses.e1).toBeUndefined();
     });
 
-    it('loads excludedExpenses from cloud', () => {
+    it('loads paidExpenses from cloud', () => {
       state = tripReducer(state, loadCloudState({
-        excludedExpenses: { e1: { excludedBy: 'Admin', at: '2026-01-01' } },
+        paidExpenses: { e1: { confirmedBy: 'Alice', date: '2026-01-15' } },
       }));
-      expect(state.excludedExpenses.e1.excludedBy).toBe('Admin');
+      expect(state.paidExpenses.e1.confirmedBy).toBe('Alice');
     });
 
-    it('defaults excludedExpenses to empty object on invalid cloud data', () => {
-      state = tripReducer(state, loadCloudState({ excludedExpenses: 'invalid' }));
-      expect(state.excludedExpenses).toEqual({});
+    it('defaults paidExpenses to empty object on invalid cloud data', () => {
+      state = tripReducer(state, loadCloudState({ paidExpenses: 'invalid' }));
+      expect(state.paidExpenses).toEqual({});
     });
   });
 
@@ -496,6 +498,37 @@ describe('tripSlice', () => {
     it('defaults proofOfPayment to empty object on invalid cloud data', () => {
       state = tripReducer(state, loadCloudState({ proofOfPayment: 'invalid' }));
       expect(state.proofOfPayment).toEqual({});
+    });
+    it('declines with amountReceived and records partial payment', () => {
+      state = tripReducer(state, setProofOfPayment({ settlementKey: 'Alice__Bob', path: 'proofs/x.png', uploadedBy: 'Alice' }));
+      state = tripReducer(state, declineProofOfPayment({ settlementKey: 'Alice__Bob', declinedBy: 'Bob', reason: 'Short', amountReceived: 4500 }));
+      expect(state.proofOfPayment['Alice__Bob'].status).toBe('declined');
+      expect(state.proofOfPayment['Alice__Bob'].amountReceived).toBe(4500);
+      expect(state.partialPayments['Alice__Bob']).toBe(4500);
+    });
+
+    it('accumulates partial payments across multiple declines', () => {
+      state = tripReducer(state, declineProofOfPayment({ settlementKey: 'Alice__Bob', declinedBy: 'Bob', reason: 'Short', amountReceived: 2000 }));
+      state = tripReducer(state, setProofOfPayment({ settlementKey: 'Alice__Bob', path: 'proofs/y.png', uploadedBy: 'Alice' }));
+      state = tripReducer(state, declineProofOfPayment({ settlementKey: 'Alice__Bob', declinedBy: 'Bob', reason: 'Still short', amountReceived: 1500 }));
+      expect(state.partialPayments['Alice__Bob']).toBe(3500);
+    });
+
+    it('does not record partial payment when amountReceived is 0', () => {
+      state = tripReducer(state, declineProofOfPayment({ settlementKey: 'X__Y', declinedBy: 'Y', reason: 'Blurry', amountReceived: 0 }));
+      expect(state.partialPayments['X__Y']).toBeUndefined();
+    });
+
+    it('loads partialPayments from cloud', () => {
+      state = tripReducer(state, loadCloudState({
+        partialPayments: { 'Alice__Bob': 3000 },
+      }));
+      expect(state.partialPayments['Alice__Bob']).toBe(3000);
+    });
+
+    it('defaults partialPayments to empty object on invalid cloud data', () => {
+      state = tripReducer(state, loadCloudState({ partialPayments: 'invalid' }));
+      expect(state.partialPayments).toEqual({});
     });
   });
 

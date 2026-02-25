@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
-import { deleteExpense, restoreExpense, updateExpense, excludeExpense, includeExpense } from '../store/tripSlice';
+import { deleteExpense, restoreExpense, updateExpense, markExpensePaid, unmarkExpensePaid } from '../store/tripSlice';
 import { toast } from '../store/toastSlice';
 import { CAT_LABELS, PAYMENT_LABELS, CAT_OPTIONS, PAYMENT_OPTIONS, CAT_ICONS, PAYMENT_ICONS } from '../utils/constants';
 import { formatNum } from '../utils/helpers';
@@ -19,9 +19,12 @@ const catStyles = {
   others: { background: 'rgba(67,233,123,0.2)', color: 'var(--green)' },
 };
 
+const CAR_CATS = ['parking', 'toll', 'fuel'];
+
 function EditModal({ exp, onClose, currentUser }) {
   const dispatch = useDispatch();
   const travelers = useSelector(s => s.trip.travelers);
+  const numberOfCars = useSelector(s => s.trip.numberOfCars) || 0;
   const syncConfig = useSelector(s => s.sync);
   const fileRef = useRef();
   const [form, setForm] = useState({ ...exp, amount: exp.amount.toString() });
@@ -29,8 +32,17 @@ function EditModal({ exp, onClose, currentUser }) {
   const [submitting, setSubmitting] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(null);
   const [removeReceipt, setRemoveReceipt] = useState(false);
+  const isCarPooled = numberOfCars > 0 && CAR_CATS.includes(form.category);
 
-  const set = (field, value) => setForm(prev => ({ ...prev, [field]: value }));
+  const set = (field, value) => {
+    setForm(prev => {
+      const next = { ...prev, [field]: value };
+      if (field === 'category' && numberOfCars > 0 && CAR_CATS.includes(value)) {
+        next.splitAmong = travelers.map(t => t.name);
+      }
+      return next;
+    });
+  };
 
   const toggleSplit = (name) => {
     setForm(prev => ({
@@ -209,11 +221,22 @@ function EditModal({ exp, onClose, currentUser }) {
                 Shared Among ({form.splitAmong.length}/{travelers.length})
                 <span style={{ color: 'var(--accent1)', marginLeft: 2 }}>*</span>
               </div>
-              <div style={{ display: 'flex', gap: 6 }}>
-                <button onClick={() => setForm(prev => ({ ...prev, splitAmong: travelers.map(t => t.name) }))} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--accent3)', fontSize: '0.7rem', fontWeight: 600, padding: '4px 10px', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>All</button>
-                <button onClick={() => setForm(prev => ({ ...prev, splitAmong: [] }))} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text2)', fontSize: '0.7rem', fontWeight: 600, padding: '4px 10px', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>None</button>
-              </div>
+              {!isCarPooled && (
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button onClick={() => setForm(prev => ({ ...prev, splitAmong: travelers.map(t => t.name) }))} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--accent3)', fontSize: '0.7rem', fontWeight: 600, padding: '4px 10px', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>All</button>
+                  <button onClick={() => setForm(prev => ({ ...prev, splitAmong: [] }))} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text2)', fontSize: '0.7rem', fontWeight: 600, padding: '4px 10px', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>None</button>
+                </div>
+              )}
             </div>
+            {isCarPooled && (
+              <div style={{
+                marginBottom: 10, padding: '8px 12px', borderRadius: 8,
+                background: 'rgba(72,219,251,0.06)', border: '1px solid rgba(72,219,251,0.15)',
+                fontSize: '0.72rem', color: 'var(--text2)',
+              }}>
+                {'\u{1F697}'} Car pooling is active &mdash; this expense is automatically split among all travelers.
+              </div>
+            )}
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
               {travelers.map(t => {
                 const sel = form.splitAmong.includes(t.name);
@@ -222,9 +245,10 @@ function EditModal({ exp, onClose, currentUser }) {
                     display: 'flex', alignItems: 'center', gap: 6,
                     background: sel ? 'rgba(84,160,255,0.12)' : 'var(--surface3)',
                     border: `1.5px solid ${sel ? 'var(--accent5)' : 'transparent'}`,
-                    borderRadius: 20, padding: '6px 12px', cursor: 'pointer', fontSize: '0.8rem',
+                    borderRadius: 20, padding: '6px 12px', cursor: isCarPooled ? 'default' : 'pointer', fontSize: '0.8rem',
                     transition: 'all 0.15s',
                     boxShadow: sel ? '0 0 12px rgba(84,160,255,0.15)' : 'none',
+                    ...(isCarPooled ? { opacity: 0.6 } : {}),
                   }}>
                     <span style={{
                       width: 18, height: 18, borderRadius: '50%', flexShrink: 0,
@@ -236,7 +260,7 @@ function EditModal({ exp, onClose, currentUser }) {
                     }}>
                       {sel ? '\u2713' : ''}
                     </span>
-                    <input type="checkbox" checked={sel} onChange={() => { toggleSplit(t.name); setErrors(p => ({ ...p, splitAmong: undefined })); }} style={{ display: 'none' }} />
+                    <input type="checkbox" checked={sel} disabled={isCarPooled} onChange={() => { if (!isCarPooled) { toggleSplit(t.name); setErrors(p => ({ ...p, splitAmong: undefined })); } }} style={{ display: 'none' }} />
                     <span style={{ fontWeight: sel ? 600 : 400, color: sel ? 'var(--text)' : 'var(--text2)' }}>{t.name}</span>
                   </label>
                 );
@@ -272,7 +296,7 @@ function EditModal({ exp, onClose, currentUser }) {
 export default function ExpenseTable({ currentUser }) {
   const dispatch = useDispatch();
   const expenses = useSelector(s => s.trip.expenses);
-  const excludedExpenses = useSelector(s => s.trip.excludedExpenses) || {};
+  const paidExpenses = useSelector(s => s.trip.paidExpenses) || {};
   const travelers = useSelector(s => s.trip.travelers);
   const tripName = useSelector(s => s.trip.tripName);
   const [filterCat, setFilterCat] = useState('');
@@ -290,8 +314,6 @@ export default function ExpenseTable({ currentUser }) {
   const [sortDir, setSortDir] = useState('asc');
   const [receiptModal, setReceiptModal] = useState(null);
   const [editModal, setEditModal] = useState(null);
-  const [excludeModal, setExcludeModal] = useState(null);
-  const [excludeNote, setExcludeNote] = useState('');
   const [pageSize, setPageSize] = useState(25);
   const deletedRef = useRef({});
 
@@ -345,7 +367,7 @@ export default function ExpenseTable({ currentUser }) {
   };
 
   const sortIcon = (col) => sortCol === col ? (sortDir === 'asc' ? ' \u25B2' : ' \u25BC') : '';
-  const thStyle = { cursor: 'pointer', userSelect: 'none' };
+
 
   const toggleSelect = (id) => {
     setSelected(prev => prev.includes(id) ? prev.filter(s => s !== id) : [...prev, id]);
@@ -405,11 +427,12 @@ export default function ExpenseTable({ currentUser }) {
 
   const exportCSV = () => {
     if (filtered.length === 0) { dispatch(toast('No expenses to export.', 'error')); return; }
-    const headers = ['Date','Category','Description','Amount (PHP)','Paid By','Payment Method','Reference Code','Receipt','Shared Among','Logged By','Logged At'];
+    const headers = ['Date','Category','Description','Amount (PHP)','Split Amount (PHP)','Paid By','Payment Method','Reference Code','Receipt','Shared Among','Logged By','Logged At','Settled Outside App'];
     const rows = filtered.map(e => [
-      e.date, CAT_LABELS[e.category], e.description, e.amount.toFixed(2),
+      e.date, CAT_LABELS[e.category], e.description, e.amount.toFixed(2), (e.amount / e.splitAmong.length).toFixed(2),
       e.paidBy, PAYMENT_LABELS[e.payment], e.refCode || '', e.receiptPath ? 'Yes' : 'No',
       e.splitAmong.join(', '), e.loggedBy || '', e.loggedAt || '',
+      paidExpenses[e.id] ? 'Yes' : 'No',
     ].map(csvSafe));
     const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
@@ -586,37 +609,67 @@ export default function ExpenseTable({ currentUser }) {
                   <input type="checkbox" checked={allFilteredSelected} onChange={toggleSelectAll} style={{ width: 16, height: 16, cursor: 'pointer' }} aria-label="Select all" />
                 </th>
               )}
-              <th>#</th>
-              <th style={thStyle} onClick={() => toggleSort('date')}>Date{sortIcon('date')}</th>
-              <th style={thStyle} onClick={() => toggleSort('category')}>Category{sortIcon('category')}</th>
-              <th style={thStyle} onClick={() => toggleSort('description')}>Description{sortIcon('description')}</th>
-              <th style={thStyle} onClick={() => toggleSort('amount')}>Amount{sortIcon('amount')}</th>
-              <th style={thStyle} onClick={() => toggleSort('paidBy')}>Paid By{sortIcon('paidBy')}</th>
-              <th style={thStyle} onClick={() => toggleSort('payment')}>Method{sortIcon('payment')}</th>
-              <th>Ref</th><th>Receipt</th><th>Split</th><th>Per Person</th><th>Logged By</th>
+              <th className="sortable" onClick={() => toggleSort('date')}>Date{sortIcon('date')}</th>
+              <th className="sortable" onClick={() => toggleSort('category')}>Category{sortIcon('category')}</th>
+              <th className="sortable" onClick={() => toggleSort('description')}>Description{sortIcon('description')}</th>
+              <th className="sortable" onClick={() => toggleSort('amount')} style={{ textAlign: 'right' }}>Amount{sortIcon('amount')}</th>
+              <th className="sortable" onClick={() => toggleSort('paidBy')}>Paid By{sortIcon('paidBy')}</th>
+              <th>Receipt</th>
+              <th>Split</th>
               <th className="no-print">Actions</th>
             </tr>
           </thead>
           <tbody>
             {filtered.slice(0, pageSize).map((exp, fi) => {
               return (
-                <tr key={exp.id || fi} style={{ background: selected.includes(exp.id) ? 'rgba(255,107,107,0.08)' : undefined, ...(excludedExpenses[exp.id] ? { opacity: 0.45 } : {}) }}>
+                <tr key={exp.id || fi} style={{ background: selected.includes(exp.id) ? 'rgba(255,107,107,0.08)' : paidExpenses[exp.id] ? 'rgba(67,233,123,0.04)' : undefined, ...(paidExpenses[exp.id] ? { borderLeft: '3px solid var(--green)' } : {}) }}>
                   {isAdmin && (
                     <td className="no-print" data-label="">
                       <input type="checkbox" checked={selected.includes(exp.id)} onChange={() => toggleSelect(exp.id)} style={{ width: 16, height: 16, cursor: 'pointer' }} aria-label={`Select ${exp.description}`} />
                     </td>
                   )}
-                  <td data-label="#">{fi + 1}</td>
-                  <td data-label="Date">{exp.date}</td>
-                  <td data-label="Category"><Badge style={catStyles[exp.category]}>{CAT_ICONS[exp.category]} {CAT_LABELS[exp.category]}</Badge></td>
-                  <td data-label="Description">
-                    <span style={excludedExpenses[exp.id] ? { textDecoration: 'line-through' } : undefined}>{exp.description}</span>
-                    {excludedExpenses[exp.id] && <span title={excludedExpenses[exp.id].note || ''} style={{ marginLeft: 6, fontSize: '0.6rem', fontWeight: 700, color: 'var(--accent1)', background: 'rgba(255,107,107,0.12)', padding: '1px 6px', borderRadius: 8, textTransform: 'uppercase', letterSpacing: 0.5, cursor: 'help' }}>Excluded{excludedExpenses[exp.id].note ? `: ${excludedExpenses[exp.id].note}` : ''}</span>}
+                  {/* Date — desktop: merged with logged-by sub line */}
+                  <td data-label="Date">
+                    <div>{exp.date}</div>
+                    <div className="desktop-sub">
+                      {exp.loggedBy && <span>{exp.loggedBy}</span>}
+                      {exp.loggedAt && <span> &middot; {new Date(exp.loggedAt).toLocaleString('en-PH', { month: 'short', day: 'numeric' })}</span>}
+                    </div>
                   </td>
-                  <td data-label="Amount" style={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums', fontSize: '0.95rem' }}>&#8369;{formatNum(exp.amount)}</td>
-                  <td data-label="Paid By">{exp.paidBy}</td>
-                  <td data-label="Method"><span>{PAYMENT_ICONS[exp.payment]} {PAYMENT_LABELS[exp.payment] || exp.payment}</span></td>
-                  <td data-label="Ref">{exp.refCode || '-'}</td>
+                  <td data-label="Category"><Badge style={catStyles[exp.category]}>{CAT_ICONS[exp.category]} {CAT_LABELS[exp.category]}</Badge></td>
+                  <td data-label="Description" style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
+                    <span style={paidExpenses[exp.id] ? { textDecoration: 'line-through', opacity: 0.55 } : undefined}>{exp.description}</span>
+                    {paidExpenses[exp.id] && <span style={{ marginLeft: 6, fontSize: '0.62rem', fontWeight: 700, color: '#fff', background: 'var(--green)', padding: '2px 8px', borderRadius: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>Settled</span>}
+                  </td>
+                  {/* Amount — desktop: merged with per-person sub line */}
+                  <td data-label="Amount" style={{ textAlign: 'right', fontWeight: 700, fontVariantNumeric: 'tabular-nums', fontSize: '0.95rem', ...(paidExpenses[exp.id] ? { textDecoration: 'line-through', opacity: 0.55 } : {}) }}>
+                    <div>&#8369;{formatNum(exp.amount)}</div>
+                    {exp.splitAmong.length > 1 && (
+                      <div className="desktop-sub" style={{ fontWeight: 600, color: 'var(--green)', textAlign: 'right', textDecoration: 'none' }}>&#8369;{formatNum(exp.amount / exp.splitAmong.length)}/ea</div>
+                    )}
+                  </td>
+                  {/* Paid By — desktop: merged with method + ref sub lines */}
+                  <td data-label="Paid By">
+                    <div style={{ fontWeight: 500 }}>{exp.paidBy}</div>
+                    <div className="desktop-sub">
+                      <span>{PAYMENT_ICONS[exp.payment]} {PAYMENT_LABELS[exp.payment] || exp.payment}</span>
+                      {exp.refCode && <span> &middot; {exp.refCode}</span>}
+                    </div>
+                  </td>
+                  {/* Mobile-only cells: Method, Ref, Per Person, Logged By */}
+                  <td className="desktop-hide" data-label="Method"><span>{PAYMENT_ICONS[exp.payment]} {PAYMENT_LABELS[exp.payment] || exp.payment}</span></td>
+                  <td className="desktop-hide" data-label="Ref">{exp.refCode || '-'}</td>
+                  <td className="desktop-hide" data-label="Per Person">
+                    {exp.splitAmong.length > 1 && (
+                      <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--green)' }}>&#8369;{formatNum(exp.amount / exp.splitAmong.length)}</span>
+                    )}
+                    {exp.splitAmong.length <= 1 && <span style={{ color: 'var(--text2)', fontSize: '0.78rem' }}>&mdash;</span>}
+                  </td>
+                  <td className="desktop-hide" data-label="Logged By">
+                    <div style={{ fontSize: '0.78rem' }}>{exp.loggedBy || '-'}</div>
+                    {exp.loggedAt && <div style={{ fontSize: '0.65rem', color: 'var(--text2)', marginTop: 2 }}>{new Date(exp.loggedAt).toLocaleString('en-PH', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>}
+                  </td>
+                  {/* Receipt */}
                   <td data-label="Receipt">
                     {exp.receiptPath ? (
                       <button
@@ -626,16 +679,16 @@ export default function ExpenseTable({ currentUser }) {
                           display: 'inline-flex', alignItems: 'center', gap: 4,
                           background: 'rgba(67,233,123,0.12)', color: 'var(--green)',
                           border: '1px solid rgba(67,233,123,0.3)', borderRadius: 6,
-                          padding: '3px 10px', cursor: 'pointer', fontSize: '0.75rem',
+                          padding: '3px 8px', cursor: 'pointer', fontSize: '0.75rem',
                           fontWeight: 600, transition: 'all 0.2s',
                         }}
                         onMouseEnter={e => { e.currentTarget.style.background = 'rgba(67,233,123,0.25)'; }}
                         onMouseLeave={e => { e.currentTarget.style.background = 'rgba(67,233,123,0.12)'; }}
                       >
-                        &#128206; View
+                        &#128206;
                       </button>
                     ) : (
-                      <span style={{ color: 'var(--text2)', fontSize: '0.78rem' }}>&mdash;</span>
+                      <span style={{ color: 'var(--text3)', fontSize: '0.78rem' }}>&mdash;</span>
                     )}
                   </td>
                   <td data-label="Split">
@@ -654,23 +707,32 @@ export default function ExpenseTable({ currentUser }) {
                           );
                         })}
                       </div>
-                      {canModify(exp) && (
+                      {(canModify(exp) || (!isExpenseLocked && (isAdmin || (currentUser && exp.loggedBy === currentUser)))) && (
                         <div className="inline-actions" style={{ display: 'none', gap: 4, flexShrink: 0 }}>
-                          <button onClick={() => handleEdit(exp)} title="Edit" style={{ width: 28, height: 28, borderRadius: 7, border: '1px solid rgba(84,160,255,0.25)', background: 'rgba(84,160,255,0.1)', color: 'var(--accent5)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.78rem', padding: 0 }}>&#9998;</button>
-                          <button onClick={() => handleDelete(exp)} title="Delete" style={{ width: 28, height: 28, borderRadius: 7, border: '1px solid rgba(255,107,107,0.25)', background: 'rgba(255,107,107,0.1)', color: 'var(--accent1)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.78rem', padding: 0 }}>&#128465;</button>
+                          {canModify(exp) && (
+                            <>
+                              <button onClick={() => handleEdit(exp)} title="Edit" style={{ width: 28, height: 28, borderRadius: 7, border: '1px solid rgba(84,160,255,0.25)', background: 'rgba(84,160,255,0.1)', color: 'var(--accent5)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.78rem', padding: 0 }}>&#9998;</button>
+                              <button onClick={() => handleDelete(exp)} title="Delete" style={{ width: 28, height: 28, borderRadius: 7, border: '1px solid rgba(255,107,107,0.25)', background: 'rgba(255,107,107,0.1)', color: 'var(--accent1)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.78rem', padding: 0 }}>&#128465;</button>
+                            </>
+                          )}
+                          {!isExpenseLocked && (isAdmin || (currentUser && exp.loggedBy === currentUser)) && (
+                            <button
+                              onClick={() => {
+                                if (paidExpenses[exp.id]) {
+                                  dispatch(unmarkExpensePaid(exp.id));
+                                  dispatch(toast('Expense unmarked as paid.'));
+                                } else {
+                                  dispatch(markExpensePaid({ expenseId: exp.id, confirmedBy: currentUser, date: new Date().toISOString().slice(0, 10) }));
+                                  dispatch(toast('Expense marked as paid!'));
+                                }
+                              }}
+                              title={paidExpenses[exp.id] ? 'Unmark as paid' : 'Mark as paid'}
+                              style={{ width: 28, height: 28, borderRadius: 7, border: `1px solid ${paidExpenses[exp.id] ? 'rgba(67,233,123,0.3)' : 'rgba(67,233,123,0.2)'}`, background: paidExpenses[exp.id] ? 'rgba(67,233,123,0.1)' : 'rgba(67,233,123,0.05)', color: paidExpenses[exp.id] ? 'var(--green)' : 'var(--text2)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.78rem', padding: 0 }}
+                            >{paidExpenses[exp.id] ? '\u2714' : '\u20B1'}</button>
+                          )}
                         </div>
                       )}
                     </div>
-                  </td>
-                  <td data-label="Per Person">
-                    {exp.splitAmong.length > 1 && (
-                      <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--green)' }}>&#8369;{formatNum(exp.amount / exp.splitAmong.length)}</span>
-                    )}
-                    {exp.splitAmong.length <= 1 && <span style={{ color: 'var(--text2)', fontSize: '0.78rem' }}>&mdash;</span>}
-                  </td>
-                  <td data-label="Logged By">
-                    <div style={{ fontSize: '0.78rem' }}>{exp.loggedBy || '-'}</div>
-                    {exp.loggedAt && <div style={{ fontSize: '0.65rem', color: 'var(--text2)', marginTop: 2 }}>{new Date(exp.loggedAt).toLocaleString('en-PH', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>}
                   </td>
                   <td className="no-print" data-label="Actions">
                     <div style={{ display: 'flex', gap: 4 }}>
@@ -680,14 +742,22 @@ export default function ExpenseTable({ currentUser }) {
                           <button onClick={() => handleDelete(exp)} title="Delete" style={{ width: 28, height: 28, borderRadius: 7, border: '1px solid rgba(255,107,107,0.25)', background: 'rgba(255,107,107,0.1)', color: 'var(--accent1)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.78rem', padding: 0, transition: 'all 0.15s' }}>&#128465;</button>
                         </>
                       )}
-                      {(isAdmin || (currentUser && exp.loggedBy === currentUser)) && (
+                      {!isExpenseLocked && (isAdmin || (currentUser && exp.loggedBy === currentUser)) && (
                         <button
-                          onClick={() => excludedExpenses[exp.id] ? dispatch(includeExpense(exp.id)) : isAdmin ? requireAdmin(() => { setExcludeModal(exp.id); setExcludeNote(''); }) : (() => { setExcludeModal(exp.id); setExcludeNote(''); })()}
-                          title={excludedExpenses[exp.id] ? 'Include in settlements' : 'Exclude from settlements'}
-                          style={{ width: 28, height: 28, borderRadius: 7, border: `1px solid ${excludedExpenses[exp.id] ? 'rgba(67,233,123,0.3)' : 'rgba(255,159,243,0.3)'}`, background: excludedExpenses[exp.id] ? 'rgba(67,233,123,0.1)' : 'rgba(255,159,243,0.1)', color: excludedExpenses[exp.id] ? 'var(--green)' : 'var(--accent4)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.78rem', padding: 0, transition: 'all 0.15s' }}
-                        >{excludedExpenses[exp.id] ? '\u2714' : '\u2298'}</button>
+                          onClick={() => {
+                            if (paidExpenses[exp.id]) {
+                              dispatch(unmarkExpensePaid(exp.id));
+                              dispatch(toast('Expense unmarked as paid.'));
+                            } else {
+                              dispatch(markExpensePaid({ expenseId: exp.id, confirmedBy: currentUser, date: new Date().toISOString().slice(0, 10) }));
+                              dispatch(toast('Expense marked as paid!'));
+                            }
+                          }}
+                          title={paidExpenses[exp.id] ? 'Unmark as paid' : 'Mark as paid'}
+                          style={{ width: 28, height: 28, borderRadius: 7, border: `1px solid ${paidExpenses[exp.id] ? 'rgba(67,233,123,0.3)' : 'rgba(67,233,123,0.2)'}`, background: paidExpenses[exp.id] ? 'rgba(67,233,123,0.1)' : 'rgba(67,233,123,0.05)', color: paidExpenses[exp.id] ? 'var(--green)' : 'var(--text2)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.78rem', padding: 0, transition: 'all 0.15s' }}
+                        >{paidExpenses[exp.id] ? '\u2714' : '\u20B1'}</button>
                       )}
-                      {!canModify(exp) && !isAdmin && !(currentUser && exp.loggedBy === currentUser) && <span style={{ color: 'var(--text2)', fontSize: '0.75rem' }}>&mdash;</span>}
+                      {!canModify(exp) && (isExpenseLocked || (!isAdmin && !(currentUser && exp.loggedBy === currentUser))) && <span style={{ color: 'var(--text2)', fontSize: '0.75rem' }}>&mdash;</span>}
                     </div>
                   </td>
                 </tr>
@@ -721,8 +791,16 @@ export default function ExpenseTable({ currentUser }) {
           background: 'var(--surface2)', border: '1px solid var(--border)',
           fontSize: '0.82rem', flexWrap: 'wrap', gap: 8,
         }}>
-          <span style={{ color: 'var(--text2)' }}>{filtered.length} expense{filtered.length !== 1 ? 's' : ''}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            <span style={{ color: 'var(--text2)' }}>{filtered.length} expense{filtered.length !== 1 ? 's' : ''}</span>
+            {(() => { const paidCount = filtered.filter(e => paidExpenses[e.id]).length; const paidTotal = filtered.filter(e => paidExpenses[e.id]).reduce((s, e) => s + e.amount, 0); return paidCount > 0 ? <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--green)', background: 'rgba(67,233,123,0.1)', padding: '2px 10px', borderRadius: 10 }}>&#10003; {paidCount} paid &mdash; &#8369;{formatNum(paidTotal)}</span> : null; })()}
+          </div>
           <span style={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>Total: &#8369;{formatNum(filtered.reduce((s, e) => s + e.amount, 0))}</span>
+          {filtered.some(e => paidExpenses[e.id]) && (
+            <div style={{ width: '100%', fontSize: '0.68rem', color: 'var(--text2)', fontStyle: 'italic' }}>
+              Total includes expenses already settled outside the app.
+            </div>
+          )}
         </div>
       )}
       {receiptModal && (
@@ -783,34 +861,6 @@ export default function ExpenseTable({ currentUser }) {
         </div>
       )}
       {editModal && <EditModal exp={editModal} onClose={() => setEditModal(null)} currentUser={currentUser} />}
-      {excludeModal && (
-        <div onClick={() => setExcludeModal(null)} style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-          <div onClick={e => e.stopPropagation()} style={{ background: 'var(--surface)', borderRadius: 14, padding: 24, maxWidth: 400, width: '100%', boxShadow: '0 8px 32px rgba(0,0,0,0.3)' }}>
-            <div style={{ fontSize: '0.95rem', fontWeight: 700, marginBottom: 12, color: 'var(--accent4)' }}>Exclude from Settlements</div>
-            <div style={{ fontSize: '0.78rem', color: 'var(--text2)', marginBottom: 12 }}>Provide a reason for excluding this expense:</div>
-            <textarea
-              value={excludeNote}
-              onChange={e => setExcludeNote(e.target.value)}
-              placeholder="e.g. Duplicate entry, personal expense, etc."
-              rows={3}
-              style={{ width: '100%', boxSizing: 'border-box', background: 'var(--surface3)', border: '1px solid var(--border)', borderRadius: 8, padding: 10, fontSize: '0.85rem', resize: 'vertical', fontFamily: 'Inter, sans-serif', color: 'var(--text)' }}
-              autoFocus
-            />
-            <div style={{ display: 'flex', gap: 8, marginTop: 14, justifyContent: 'flex-end' }}>
-              <button onClick={() => setExcludeModal(null)} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text2)', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>Cancel</button>
-              <button
-                onClick={() => {
-                  if (!excludeNote.trim()) { dispatch(toast('Please add a note.', 'error')); return; }
-                  dispatch(excludeExpense({ expenseId: excludeModal, excludedBy: currentUser, note: excludeNote.trim() }));
-                  dispatch(toast('Expense excluded from settlements.'));
-                  setExcludeModal(null);
-                }}
-                style={{ padding: '8px 16px', borderRadius: 8, border: 'none', background: 'var(--accent4)', color: 'white', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}
-              >Exclude</button>
-            </div>
-          </div>
-        </div>
-      )}
     </Card>
   );
 }

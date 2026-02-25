@@ -24,6 +24,7 @@ export default function TripInfo() {
   const travelers = useSelector(s => s.trip.travelers);
   const maxTravelers = useSelector(s => s.trip.maxTravelers) || 10;
   const syncConfig = useSelector(s => s.sync);
+  const numberOfCars = useSelector(s => s.trip.numberOfCars) || 0;
   const expenseLockDate = useSelector(s => s.trip.expenseLockDate);
   const { isAdmin, requireAdmin, countdown, tryUnlock, doLock, isLockedOut, lockoutCountdown, showPasswordModal, handlePasswordSubmit, handlePasswordClose } = useAdmin();
   const [newName, setNewName] = useState('');
@@ -33,13 +34,13 @@ export default function TripInfo() {
   const [lockDraft, setLockDraft] = useState('');
   const { countdown: lockCountdown } = useCountdownTo(expenseLockDate);
 
-  const storeFields = { tripName, tripDestination, tripStart, tripEnd, maxTravelers };
+  const storeFields = { tripName, tripDestination, tripStart, tripEnd, maxTravelers, numberOfCars };
   const [draft, setDraft] = useState({ ...storeFields });
   const [dirty, setDirty] = useState(false);
 
   useEffect(() => {
-    if (!dirty) setDraft({ tripName, tripDestination, tripStart, tripEnd, maxTravelers });
-  }, [tripName, tripDestination, tripStart, tripEnd, maxTravelers, dirty]);
+    if (!dirty) setDraft({ tripName, tripDestination, tripStart, tripEnd, maxTravelers, numberOfCars });
+  }, [tripName, tripDestination, tripStart, tripEnd, maxTravelers, numberOfCars, dirty]);
 
   const validate = (field, value) => {
     switch (field) {
@@ -61,6 +62,10 @@ export default function TripInfo() {
       case 'maxTravelers':
         if (!value || value < 1) return 'Min 1';
         if (value > 50) return 'Max 50';
+        return null;
+      case 'numberOfCars':
+        if (value < 0) return 'Min 0';
+        if (value > 20) return 'Max 20';
         return null;
       default:
         return null;
@@ -298,6 +303,31 @@ export default function TripInfo() {
         </div>
       </motion.div>
 
+      <AnimatePresence>
+        {isAdmin && dirty && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            style={{ overflow: 'hidden' }}
+          >
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              padding: '10px 18px',
+              borderBottom: '1px solid var(--border)',
+              background: 'rgba(67,233,123,0.04)',
+            }}>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text2)' }}>You have unsaved changes</span>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <Btn small variant="ghost" onClick={handleCancel}>Cancel</Btn>
+                <Btn small variant="success" onClick={handleSave}>Save</Btn>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <AnimatePresence initial={false}>
         {!collapsed && (
           <motion.div
@@ -314,7 +344,7 @@ export default function TripInfo() {
                   { field: 'tripDestination', label: 'Destination', type: 'text', placeholder: 'e.g. La Union' },
                   { field: 'tripStart', label: 'Start Date', type: 'date' },
                   { field: 'tripEnd', label: 'End Date', type: 'date' },
-                  { field: 'maxTravelers', label: 'Max Travelers', type: 'number', placeholder: '10' },
+                  { field: 'maxTravelers', label: 'Max Travelers', type: 'number', placeholder: '10', min: 1, max: 50 },
                 ].map(f => (
                   <FormGroup key={f.field} label={f.label}>
                     <input
@@ -322,8 +352,8 @@ export default function TripInfo() {
                       value={draft[f.field]}
                       readOnly={!isAdmin}
                       placeholder={f.placeholder}
-                      min={f.type === 'number' ? 1 : undefined}
-                      max={f.type === 'number' ? 50 : undefined}
+                      min={f.min}
+                      max={f.max}
                       maxLength={f.type === 'text' ? 100 : undefined}
                       onChange={e => handleDraftChange(f.field, e.target.value, f.type)}
                       style={{
@@ -340,12 +370,68 @@ export default function TripInfo() {
                 ))}
               </div>
 
-              {isAdmin && dirty && (
-                <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
-                  <Btn small variant="success" onClick={handleSave}>Save</Btn>
-                  <Btn small variant="ghost" onClick={handleCancel}>Cancel</Btn>
+              {/* Car Pooling */}
+              <div style={{
+                marginTop: 22, padding: '16px 18px', borderRadius: 14,
+                background: numberOfCars > 0 ? 'rgba(72,219,251,0.04)' : 'var(--surface2)',
+                border: `1px solid ${numberOfCars > 0 ? 'rgba(72,219,251,0.2)' : 'var(--border)'}`,
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontSize: '1.1rem' }}>{'\u{1F697}'}</span>
+                    <div>
+                      <div style={{ fontSize: '0.82rem', fontWeight: 700 }}>Car Pooling</div>
+                      <div style={{ fontSize: '0.68rem', color: 'var(--text2)' }}>
+                        {numberOfCars > 0
+                          ? `${numberOfCars} car${numberOfCars !== 1 ? 's' : ''} \u2014 active`
+                          : 'Not configured'}
+                      </div>
+                    </div>
+                  </div>
+                  {isAdmin && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <input
+                        type="number"
+                        min={0}
+                        max={20}
+                        value={draft.numberOfCars || ''}
+                        placeholder="0"
+                        onChange={e => handleDraftChange('numberOfCars', e.target.value, 'number')}
+                        style={{ width: 60, height: 36, textAlign: 'center', fontSize: '0.88rem', fontWeight: 700 }}
+                      />
+                      <span style={{ fontSize: '0.72rem', color: 'var(--text2)' }}>cars</span>
+                      {draft.numberOfCars > 0 && (
+                        <button
+                          onClick={() => handleDraftChange('numberOfCars', '0', 'number')}
+                          style={{
+                            background: 'none', border: '1px solid rgba(255,107,107,0.3)',
+                            borderRadius: 6, padding: '4px 10px', fontSize: '0.68rem', fontWeight: 600,
+                            color: 'var(--accent1)', cursor: 'pointer', fontFamily: 'Inter, sans-serif',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          Disable
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
-              )}
+                <div style={{
+                  marginTop: 10, padding: '10px 12px', borderRadius: 8,
+                  background: 'rgba(84,160,255,0.06)', border: '1px solid rgba(84,160,255,0.12)',
+                  fontSize: '0.72rem', lineHeight: 1.5, color: 'var(--text2)',
+                }}>
+                  When set, all <strong style={{ color: 'var(--text)' }}>parking</strong>, <strong style={{ color: 'var(--text)' }}>toll</strong>, and <strong style={{ color: 'var(--text)' }}>fuel</strong> expenses
+                  will be pooled together and split equally among <strong style={{ color: 'var(--text)' }}>all travelers</strong>,
+                  regardless of who was originally included in each expense&apos;s split.
+                  {numberOfCars > 0 && ' This is currently active and affects settlement calculations.'}
+                </div>
+                {errors.numberOfCars && (
+                  <span style={{ color: '#ff6b6b', fontSize: '0.72rem', marginTop: 6, display: 'block' }}>
+                    {errors.numberOfCars}
+                  </span>
+                )}
+              </div>
 
               <div style={{ marginTop: 22 }}>
                 <CardTitle icon="&#128101;" gradient="var(--gradient5)">

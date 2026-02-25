@@ -38,13 +38,15 @@ export default function SettlementTab({ currentUser }) {
     qrCodes = {},
     paymentInfo = {},
     paidSettlements = {},
-    excludedExpenses = {},
+    paidExpenses = {},
     proofOfPayment = {},
+    partialPayments = {},
     dpCollections = [],
     hotelCostPerHead,
     hotelNights,
     hotelParkingSlots,
     hotelParkingCost,
+    numberOfCars = 0,
   } = useSelector((s) => s.trip);
   const syncConfig = useSelector((s) => s.sync);
   const [qrModal, setQrModal] = useState(null);
@@ -55,6 +57,7 @@ export default function SettlementTab({ currentUser }) {
   const [proofModal, setProofModal] = useState(null);
   const [declineModal, setDeclineModal] = useState(null);
   const [declineReason, setDeclineReason] = useState("");
+  const [declineAmount, setDeclineAmount] = useState("");
   const [breakdownFilter, setBreakdownFilter] = useState("mine");
   const savedInfo = paymentInfo[currentUser] || {
     gcash: "",
@@ -82,8 +85,8 @@ export default function SettlementTab({ currentUser }) {
   }, [savedInfo.gcash, savedInfo.maya, savedInfo.maribank]);
 
   const { balances } = useMemo(
-    () => computeBalances(expenses, travelers, null, excludedExpenses),
-    [expenses, travelers, excludedExpenses],
+    () => computeBalances(expenses, travelers, paidExpenses, numberOfCars),
+    [expenses, travelers, paidExpenses, numberOfCars],
   );
 
   const travelerNames = useMemo(
@@ -177,47 +180,24 @@ export default function SettlementTab({ currentUser }) {
       }));
   }, [totalSettlements, excessByCollector]);
 
-  const userExcludedExpenses = useMemo(() => {
-    if (!currentUser) return [];
-    const ids = Object.keys(excludedExpenses);
-    if (ids.length === 0) return [];
-    return expenses
-      .filter(
-        (exp) =>
-          excludedExpenses[exp.id] &&
-          (exp.paidBy === currentUser || exp.splitAmong.includes(currentUser)),
-      )
-      .map((exp) => {
-        const share =
-          Math.round((exp.amount / exp.splitAmong.length) * 100) / 100;
-        const impact = exp.paidBy === currentUser ? exp.amount - share : -share;
-        return { ...exp, share, impact, exclusion: excludedExpenses[exp.id] };
-      });
-  }, [currentUser, expenses, excludedExpenses]);
-
-  const totalExcludedImpact = useMemo(
-    () => userExcludedExpenses.reduce((s, e) => s + e.impact, 0),
-    [userExcludedExpenses],
-  );
-
   const sKey = (s) => `${s.from}__${s.to}`;
 
   const expensesByPair = useMemo(() => {
     const map = {};
     expenses.forEach((exp) => {
-      if (excludedExpenses[exp.id]) return;
+      const isPaid = !!paidExpenses[exp.id];
       const share =
         Math.round((exp.amount / exp.splitAmong.length) * 100) / 100;
       exp.splitAmong.forEach((name) => {
         if (name !== exp.paidBy) {
           const k = `${name}__${exp.paidBy}`;
           if (!map[k]) map[k] = { from: name, to: exp.paidBy, expenses: [] };
-          map[k].expenses.push({ ...exp, owedAmount: share });
+          map[k].expenses.push({ ...exp, owedAmount: share, isPaid });
         }
       });
     });
     return Object.values(map);
-  }, [expenses, excludedExpenses]);
+  }, [expenses, paidExpenses]);
 
   const isUserSettlement = (s) =>
     currentUser && (s.from === currentUser || s.to === currentUser);
@@ -277,6 +257,33 @@ export default function SettlementTab({ currentUser }) {
     });
     return net;
   }, [currentUser, excessByCollector]);
+
+  const userPaidExpenses = useMemo(() => {
+    if (!currentUser) return [];
+    const ids = Object.keys(paidExpenses);
+    if (ids.length === 0) return [];
+    return expenses
+      .filter(
+        (exp) =>
+          paidExpenses[exp.id] &&
+          (exp.paidBy === currentUser || exp.splitAmong.includes(currentUser)),
+      )
+      .map((exp) => {
+        const share =
+          Math.round((exp.amount / exp.splitAmong.length) * 100) / 100;
+        return { ...exp, share, paidInfo: paidExpenses[exp.id] };
+      });
+  }, [currentUser, expenses, paidExpenses]);
+
+  const totalPaidExpensesShare = useMemo(
+    () => userPaidExpenses.reduce((s, e) => s + e.share, 0),
+    [userPaidExpenses],
+  );
+
+  const totalPaidExpensesAmount = useMemo(
+    () => userPaidExpenses.reduce((s, e) => s + e.amount, 0),
+    [userPaidExpenses],
+  );
 
   const getUserQr = (name) => {
     const q = qrCodes[name];
@@ -392,68 +399,6 @@ export default function SettlementTab({ currentUser }) {
 
   const resolveQrUrl = (path) => (path ? getQrUrl(syncConfig, path) : null);
 
-  const renderName = (name, isUser, showQr) => {
-    const showBtn = showQr && hasPaymentDetails(name);
-    return (
-      <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-        <span
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 6,
-            ...(isUser
-              ? { color: "var(--accent5)", fontWeight: 800 }
-              : { fontWeight: 600 }),
-          }}
-        >
-          {isUser && (
-            <span
-              style={{
-                width: 6,
-                height: 6,
-                borderRadius: "50%",
-                background: "var(--accent5)",
-                display: "inline-block",
-                flexShrink: 0,
-              }}
-            />
-          )}
-          {name}
-          {isUser ? " (You)" : ""}
-        </span>
-        {showBtn && (
-          <motion.button
-            whileHover={{
-              scale: 1.05,
-              boxShadow: "0 2px 12px rgba(84,160,255,0.4)",
-            }}
-            whileTap={{ scale: 0.93 }}
-            onClick={() => nameClick(name)}
-            style={{
-              background: "var(--gradient1)",
-              border: "none",
-              borderRadius: 20,
-              padding: "4px 10px",
-              fontSize: "0.65rem",
-              fontWeight: 700,
-              color: "white",
-              cursor: "pointer",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 4,
-              fontFamily: "Inter, sans-serif",
-              letterSpacing: 0.5,
-              textTransform: "uppercase",
-              boxShadow: "0 2px 8px rgba(102,126,234,0.3)",
-            }}
-          >
-            &#128247; View QR
-          </motion.button>
-        )}
-      </span>
-    );
-  };
-
   const handleToggleSettlement = (s) => {
     const key = sKey(s);
     const date = new Date().toISOString().slice(0, 10);
@@ -507,7 +452,7 @@ export default function SettlementTab({ currentUser }) {
     dispatch(toast("Proof removed."));
   };
 
-  const handleProofDecline = async (settlementKey, reason) => {
+  const handleProofDecline = async (settlementKey, reason, amountReceived) => {
     const proof = proofOfPayment[settlementKey];
     if (proof?.path) {
       try {
@@ -515,216 +460,9 @@ export default function SettlementTab({ currentUser }) {
       } catch {}
     }
     dispatch(
-      declineProofOfPayment({ settlementKey, declinedBy: currentUser, reason }),
+      declineProofOfPayment({ settlementKey, declinedBy: currentUser, reason, amountReceived: amountReceived || 0 }),
     );
-    dispatch(toast("Proof declined."));
-  };
-
-  const renderRow = (s, i, highlight) => {
-    const fromIsUser = currentUser && s.from === currentUser;
-    const toIsUser = currentUser && s.to === currentUser;
-    const key = sKey(s);
-    const paid = paidSettlements[key];
-    const fullyPaid = paid;
-    const proof = proofOfPayment[key];
-    const proofUrl = proof?.path ? getProofUrl(syncConfig, proof.path) : null;
-    return (
-      <tr
-        key={`${highlight ? "u" : "o"}-${i}`}
-        style={{
-          ...(highlight ? { background: "rgba(84,160,255,0.08)" } : {}),
-          ...(fullyPaid ? { opacity: 0.55 } : {}),
-        }}
-      >
-        <td>{renderName(s.from, fromIsUser, false)}</td>
-        <td style={{ color: "var(--accent3)", fontWeight: 700 }}>&rarr;</td>
-        <td>{renderName(s.to, toIsUser, highlight && !toIsUser)}</td>
-        <td style={{ fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>
-          &#8369;{formatNum(s.amount)}
-        </td>
-        <td style={{ textAlign: "center" }}>
-          {proofUrl ? (
-            <button
-              onClick={() =>
-                setProofModal({
-                  key,
-                  url: proofUrl,
-                  settlement: s,
-                  paid: !!paid,
-                })
-              }
-              style={{
-                background: "rgba(84,160,255,0.1)",
-                border: "1px solid rgba(84,160,255,0.25)",
-                borderRadius: 20,
-                padding: "3px 10px",
-                fontSize: "0.65rem",
-                fontWeight: 700,
-                color: "var(--accent5)",
-                cursor: "pointer",
-                fontFamily: "Inter, sans-serif",
-              }}
-            >
-              &#128206; View Proof
-            </button>
-          ) : proof?.status === "declined" ? (
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                gap: 4,
-              }}
-            >
-              <span
-                title={proof.declineReason || ""}
-                style={{
-                  fontSize: "0.62rem",
-                  fontWeight: 700,
-                  color: "var(--accent1)",
-                  background: "rgba(255,107,107,0.12)",
-                  padding: "2px 8px",
-                  borderRadius: 12,
-                  cursor: proof.declineReason ? "help" : "default",
-                }}
-              >
-                {"\u2718"} Declined
-                {proof.declineReason ? `: ${proof.declineReason}` : ""}
-              </span>
-              {fromIsUser && (
-                <label
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 4,
-                    background: "var(--surface3)",
-                    border: "1px dashed rgba(255,107,107,0.4)",
-                    borderRadius: 20,
-                    padding: "3px 10px",
-                    fontSize: "0.62rem",
-                    fontWeight: 600,
-                    color: "var(--accent1)",
-                    cursor: "pointer",
-                    fontFamily: "Inter, sans-serif",
-                  }}
-                >
-                  {proofUploading === key ? (
-                    <>
-                      <Spinner size={10} color="var(--accent1)" /> Uploading...
-                    </>
-                  ) : (
-                    <>{"\u{1F4F7}"} Re-upload</>
-                  )}
-                  <input
-                    type="file"
-                    accept="image/jpeg,image/png,image/webp,application/pdf"
-                    onChange={(e) => handleProofUpload(key, e)}
-                    style={{ display: "none" }}
-                    disabled={!!proofUploading}
-                  />
-                </label>
-              )}
-            </div>
-          ) : fromIsUser ? (
-            <label
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 4,
-                background: "var(--surface3)",
-                border: "1px dashed var(--border)",
-                borderRadius: 20,
-                padding: "3px 10px",
-                fontSize: "0.65rem",
-                fontWeight: 600,
-                color: "var(--text2)",
-                cursor: "pointer",
-                fontFamily: "Inter, sans-serif",
-              }}
-            >
-              {proofUploading === key ? (
-                <>
-                  <Spinner size={10} color="var(--text2)" /> Uploading...
-                </>
-              ) : (
-                <>{"\u{1F4F7}"} Upload Proof</>
-              )}
-              <input
-                type="file"
-                accept="image/jpeg,image/png,image/webp,application/pdf"
-                onChange={(e) => handleProofUpload(key, e)}
-                style={{ display: "none" }}
-                disabled={!!proofUploading}
-              />
-            </label>
-          ) : (
-            <span style={{ fontSize: "0.65rem", color: "var(--text2)" }}>
-              &mdash;
-            </span>
-          )}
-        </td>
-        <td style={{ textAlign: "center" }}>
-          {paid ? (
-            <span
-              style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
-            >
-              <span
-                style={{
-                  fontSize: "0.68rem",
-                  fontWeight: 700,
-                  color: "var(--green)",
-                  background: "rgba(67,233,123,0.12)",
-                  padding: "3px 10px",
-                  borderRadius: 20,
-                }}
-              >
-                &#10003; Paid
-              </span>
-              {toIsUser && (
-                <button
-                  onClick={() => handleToggleSettlement(s)}
-                  style={{
-                    background: "none",
-                    border: "none",
-                    cursor: "pointer",
-                    fontSize: "0.65rem",
-                    color: "var(--text2)",
-                    textDecoration: "underline",
-                    fontFamily: "Inter, sans-serif",
-                    padding: 0,
-                  }}
-                >
-                  Undo
-                </button>
-              )}
-            </span>
-          ) : toIsUser ? (
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.93 }}
-              onClick={() => handleToggleSettlement(s)}
-              style={{
-                background: "var(--gradient4)",
-                border: "none",
-                borderRadius: 20,
-                padding: "4px 12px",
-                fontSize: "0.68rem",
-                fontWeight: 700,
-                color: "#1a1a2e",
-                cursor: "pointer",
-                fontFamily: "Inter, sans-serif",
-              }}
-            >
-              Confirm Paid
-            </motion.button>
-          ) : (
-            <span style={{ fontSize: "0.68rem", color: "var(--text2)" }}>
-              &mdash;
-            </span>
-          )}
-        </td>
-      </tr>
-    );
+    dispatch(toast(amountReceived > 0 ? `Proof declined. Received \u20B1${formatNum(amountReceived)}.` : "Proof declined."));
   };
 
   return (
@@ -739,172 +477,193 @@ export default function SettlementTab({ currentUser }) {
           Math.abs(userCombinedBalance) > 0.01 && (
             <div
               style={{
-                padding: "12px 18px",
-                borderRadius: 12,
+                borderRadius: 14,
                 marginBottom: 16,
-                background:
-                  Math.abs(userRemainingBalance) < 0.01
-                    ? "rgba(67,233,123,0.1)"
-                    : userOwes
-                      ? "rgba(255,107,107,0.1)"
-                      : "rgba(67,233,123,0.1)",
-                border: `1px solid ${Math.abs(userRemainingBalance) < 0.01 ? "rgba(67,233,123,0.25)" : userOwes ? "rgba(255,107,107,0.25)" : "rgba(67,233,123,0.25)"}`,
-                fontSize: "0.95rem",
-                fontWeight: 700,
-                color:
-                  Math.abs(userRemainingBalance) < 0.01
-                    ? "var(--green)"
-                    : userOwes
-                      ? "var(--accent1)"
-                      : "var(--green)",
+                overflow: "hidden",
+                border: `1px solid ${Math.abs(userRemainingBalance) < 0.01 ? "rgba(67,233,123,0.25)" : userOwes ? "rgba(255,107,107,0.2)" : "rgba(67,233,123,0.25)"}`,
               }}
             >
-              <div>
+              {/* Main status */}
+              <div
+                style={{
+                  padding: "12px 14px",
+                  background:
+                    Math.abs(userRemainingBalance) < 0.01
+                      ? "rgba(67,233,123,0.1)"
+                      : userOwes
+                        ? "rgba(255,107,107,0.1)"
+                        : "rgba(67,233,123,0.1)",
+                  fontSize: "0.95rem",
+                  fontWeight: 700,
+                  color:
+                    Math.abs(userRemainingBalance) < 0.01
+                      ? "var(--green)"
+                      : userOwes
+                        ? "var(--accent1)"
+                        : "var(--green)",
+                }}
+              >
                 {Math.abs(userRemainingBalance) < 0.01
                   ? "\u2714 All settled!"
                   : userOwes
-                    ? `Remaining balance: \u20B1${formatNum(Math.abs(userRemainingBalance))}`
-                    : `Remaining receivable: \u20B1${formatNum(Math.abs(userRemainingBalance))}`}
+                    ? `You still owe \u20B1${formatNum(Math.abs(userRemainingBalance))}`
+                    : `You are owed \u20B1${formatNum(Math.abs(userRemainingBalance))}`}
               </div>
-              {totalDiffers && (
-                <div
-                  style={{
-                    marginTop: 4,
-                    fontSize: "0.75rem",
-                    fontWeight: 500,
-                    color: "var(--text2)",
-                  }}
-                >
-                  Original balance: {"\u20B1"}
-                  {formatNum(Math.abs(userCombinedBalance))}
-                </div>
-              )}
-              {settledToYou > 0.01 && (
-                <div
-                  style={{
-                    marginTop: 4,
-                    fontSize: "0.75rem",
-                    fontWeight: 600,
-                    color: "var(--green)",
-                  }}
-                >
-                  Settled to you: {"\u20B1"}
-                  {formatNum(settledToYou)}
-                </div>
-              )}
-              {settledByYou > 0.01 && (
-                <div
-                  style={{
-                    marginTop: 4,
-                    fontSize: "0.75rem",
-                    fontWeight: 600,
-                    color: "var(--accent5)",
-                  }}
-                >
-                  Settled by you: {"\u20B1"}
-                  {formatNum(settledByYou)}
-                </div>
-              )}
-              {Math.abs(userDpExcess) > 0.01 && (
-                <div
-                  style={{
-                    marginTop: 4,
-                    fontSize: "0.75rem",
-                    fontWeight: 600,
-                    color: userDpExcess > 0 ? "var(--green)" : "var(--accent1)",
-                  }}
-                >
-                  {userDpExcess > 0 ? "Excess Downpayment Refund" : "DP Return"}
-                  : {"\u20B1"}
-                  {formatNum(Math.abs(userDpExcess))}
-                </div>
-              )}
+
+              {/* Breakdown rows */}
+              <div style={{ padding: "8px 14px", display: "flex", flexDirection: "column", gap: 4 }}>
+                {/* Spending summary */}
+                {(() => {
+                  const userBalance = balances.find(b => b.name === currentUser);
+                  if (!userBalance) return null;
+                  const paidShare = totalPaidExpensesShare;
+                  const totalPaid = userBalance.paid + (userPaidExpenses.filter(e => e.paidBy === currentUser).reduce((s, e) => s + e.amount, 0));
+                  const totalShare = userBalance.share + paidShare;
+                  const totalBalance = totalPaid - totalShare;
+                  return (
+                    <>
+                      <div style={{ fontSize: "0.75rem" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: "2px 12px" }}>
+                          <span style={{ color: "var(--text2)" }}>
+                            Spent {"\u20B1"}{formatNum(totalPaid)} {"\u00B7"} Share {"\u20B1"}{formatNum(totalShare)}
+                          </span>
+                          {Math.abs(totalBalance) > 0.01 && (
+                            <span style={{ fontWeight: 700, color: totalBalance > 0 ? "var(--green)" : "var(--accent1)", whiteSpace: "nowrap" }}>
+                              {totalBalance > 0 ? "+" : "-"}{"\u20B1"}{formatNum(Math.abs(totalBalance))}
+                            </span>
+                          )}
+                        </div>
+                        {paidShare > 0.01 && (
+                          <div style={{ fontSize: "0.68rem", color: "var(--text2)", fontStyle: "italic", marginTop: 2 }}>
+                            Incl. {"\u20B1"}{formatNum(paidShare)} from settled expenses
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  );
+                })()}
+
+                {totalDiffers && (
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: "2px 12px", fontSize: "0.75rem" }}>
+                    <span style={{ color: "var(--text2)" }}>Before settlements</span>
+                    <span style={{ fontWeight: 600, color: "var(--text)", whiteSpace: "nowrap" }}>{"\u20B1"}{formatNum(Math.abs(userCombinedBalance))}</span>
+                  </div>
+                )}
+
+                {settledToYou > 0.01 && (
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: "2px 12px", fontSize: "0.75rem" }}>
+                    <span style={{ color: "var(--text2)" }}>Received</span>
+                    <span style={{ fontWeight: 600, color: "var(--green)", whiteSpace: "nowrap" }}>+{"\u20B1"}{formatNum(settledToYou)}</span>
+                  </div>
+                )}
+
+                {settledByYou > 0.01 && (
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: "2px 12px", fontSize: "0.75rem" }}>
+                    <span style={{ color: "var(--text2)" }}>Paid out</span>
+                    <span style={{ fontWeight: 600, color: "var(--accent5)", whiteSpace: "nowrap" }}>-{"\u20B1"}{formatNum(settledByYou)}</span>
+                  </div>
+                )}
+
+                {Math.abs(userDpExcess) > 0.01 && (
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: "2px 12px", fontSize: "0.75rem" }}>
+                    <span style={{ color: "var(--text2)" }}>
+                      {userDpExcess > 0 ? "Hotel overpayment to collect" : "Hotel overpayment to return"}
+                    </span>
+                    <span style={{ fontWeight: 600, color: userDpExcess > 0 ? "var(--green)" : "var(--accent1)", whiteSpace: "nowrap" }}>
+                      {userDpExcess > 0 ? "+" : "-"}{"\u20B1"}{formatNum(Math.abs(userDpExcess))}
+                    </span>
+                  </div>
+                )}
+
+                {userPaidExpenses.length > 0 && (
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: "2px 12px", fontSize: "0.75rem" }}>
+                    <span style={{ color: "var(--text2)" }}>
+                      Settled individually ({userPaidExpenses.length})
+                    </span>
+                    <span style={{ fontWeight: 600, color: "var(--green)", whiteSpace: "nowrap" }}>{"\u20B1"}{formatNum(totalPaidExpensesShare)}</span>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
-        {currentUser && userExcludedExpenses.length > 0 && (
+        {currentUser && userPaidExpenses.length > 0 && (
           <div style={{ marginBottom: 16 }}>
             <div
               style={{
-                padding: "12px 16px",
-                borderRadius: 12,
-                background: "rgba(255,159,243,0.06)",
-                border: "1px solid rgba(255,159,243,0.2)",
+                borderRadius: 14,
+                overflow: "hidden",
+                border: "1px solid rgba(67,233,123,0.2)",
               }}
             >
+              {/* Header */}
               <div
                 style={{
+                  padding: "10px 16px",
+                  background: "rgba(67,233,123,0.06)",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "space-between",
-                  marginBottom: 10,
                   flexWrap: "wrap",
                   gap: 8,
                 }}
               >
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: "0.85rem" }}>{"\u2714"}</span>
+                  <span
+                    style={{
+                      fontSize: "0.78rem",
+                      fontWeight: 700,
+                      color: "var(--green)",
+                    }}
+                  >
+                    Already Settled
+                  </span>
+                  <span
+                    style={{
+                      fontSize: "0.68rem",
+                      fontWeight: 600,
+                      color: "var(--text2)",
+                      background: "var(--surface3)",
+                      padding: "2px 8px",
+                      borderRadius: 10,
+                    }}
+                  >
+                    {userPaidExpenses.length}
+                  </span>
+                </div>
                 <div
                   style={{
                     fontSize: "0.78rem",
-                    fontWeight: 700,
-                    color: "var(--accent4)",
-                    textTransform: "uppercase",
-                    letterSpacing: 1,
+                    color: "var(--text2)",
+                    display: "flex",
+                    gap: 12,
                   }}
                 >
-                  {"\u2298"} Excluded from Settlements
+                  <span>Total: <strong style={{ color: "var(--text)" }}>{"\u20B1"}{formatNum(totalPaidExpensesAmount)}</strong></span>
+                  <span>Your share: <strong style={{ color: "var(--green)" }}>{"\u20B1"}{formatNum(totalPaidExpensesShare)}</strong></span>
                 </div>
-                {Math.abs(totalExcludedImpact) > 0.01 && (
-                  <div
-                    style={{
-                      fontSize: "0.75rem",
-                      fontWeight: 600,
-                      color: "var(--text2)",
-                    }}
-                  >
-                    Impact:{" "}
-                    <span
-                      style={{
-                        fontWeight: 700,
-                        color:
-                          totalExcludedImpact > 0
-                            ? "var(--green)"
-                            : "var(--accent1)",
-                      }}
-                    >
-                      {totalExcludedImpact > 0 ? "+" : "-"}
-                      {"\u20B1"}
-                      {formatNum(Math.abs(totalExcludedImpact))}
-                    </span>
-                  </div>
-                )}
               </div>
-              <div
-                style={{
-                  overflowX: "auto",
-                  borderRadius: 10,
-                  border: "1px solid rgba(255,159,243,0.15)",
-                }}
-              >
+
+              {/* Table */}
+              <div style={{ overflowX: "auto" }}>
                 <table>
                   <thead>
                     <tr>
                       <th>Date</th>
                       <th>Description</th>
-                      <th>Amount</th>
+                      <th>Total</th>
                       <th>Paid By</th>
-                      <th>Shared By</th>
                       <th>Your Share</th>
-                      <th>Reason</th>
+                      <th>Confirmed By</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {userExcludedExpenses.map((exp) => (
-                      <tr key={exp.id} style={{ opacity: 0.7 }}>
+                    {userPaidExpenses.map((exp) => (
+                      <tr key={exp.id}>
                         <td style={{ fontSize: "0.82rem" }}>{exp.date}</td>
                         <td style={{ fontSize: "0.82rem" }}>
-                          <span style={{ textDecoration: "line-through" }}>
-                            {exp.description}
-                          </span>
+                          {exp.description}
                           {exp.category && (
                             <span
                               style={{
@@ -918,69 +677,41 @@ export default function SettlementTab({ currentUser }) {
                             </span>
                           )}
                         </td>
-                        <td style={{ fontVariantNumeric: "tabular-nums" }}>
-                          {"\u20B1"}
-                          {formatNum(exp.amount)}
+                        <td style={{ fontVariantNumeric: "tabular-nums", color: "var(--text2)" }}>
+                          {"\u20B1"}{formatNum(exp.amount)}
                         </td>
                         <td
                           style={{
                             fontWeight: exp.paidBy === currentUser ? 700 : 400,
-                            color:
-                              exp.paidBy === currentUser
-                                ? "var(--accent5)"
-                                : undefined,
+                            color: exp.paidBy === currentUser ? "var(--accent5)" : undefined,
                           }}
                         >
-                          {exp.paidBy}
-                          {exp.paidBy === currentUser ? " (You)" : ""}
+                          {exp.paidBy === currentUser ? "You" : exp.paidBy}
                         </td>
-                        <td style={{ fontSize: "0.72rem" }}>
-                          {exp.splitAmong.map((name, i) => (
-                            <span key={name}>
-                              {i > 0 && ", "}
-                              <span
-                                style={{
-                                  fontWeight: name === currentUser ? 700 : 400,
-                                  color:
-                                    name === currentUser
-                                      ? "var(--accent5)"
-                                      : undefined,
-                                }}
-                              >
-                                {name}
-                                {name === currentUser ? " (You)" : ""}
-                              </span>
-                            </span>
-                          ))}
+                        <td style={{ fontVariantNumeric: "tabular-nums", fontWeight: 600 }}>
+                          {"\u20B1"}{formatNum(exp.share)}
                         </td>
-                        <td style={{ fontVariantNumeric: "tabular-nums" }}>
-                          {"\u20B1"}
-                          {formatNum(exp.share)}
-                        </td>
-                        <td
-                          style={{
-                            fontSize: "0.72rem",
-                            color: "var(--text2)",
-                            maxWidth: 140,
-                          }}
-                        >
-                          {exp.exclusion.note || "\u2014"}
+                        <td style={{ fontSize: "0.72rem", color: "var(--text2)" }}>
+                          {exp.paidInfo.confirmedBy === currentUser ? "You" : (exp.paidInfo.confirmedBy || "\u2014")}
+                          {exp.paidInfo.date ? ` \u00B7 ${exp.paidInfo.date}` : ""}
                         </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
+
+              {/* Footer note */}
               <div
                 style={{
+                  padding: "8px 16px",
                   fontSize: "0.68rem",
                   color: "var(--text2)",
-                  marginTop: 8,
+                  background: "rgba(67,233,123,0.03)",
+                  borderTop: "1px solid rgba(67,233,123,0.1)",
                 }}
               >
-                These expenses are excluded by the admin and not counted in
-                settlement calculations. The per person summary may differ
-                from the settlement amounts due to these exclusions.
+                These expenses were settled directly between travelers and are not included in the settlement calculations.
               </div>
             </div>
           </div>
@@ -1001,29 +732,165 @@ export default function SettlementTab({ currentUser }) {
             >
               Your Settlements
             </div>
-            <div
-              style={{
-                overflowX: "auto",
-                borderRadius: 12,
-                border: "1px solid var(--accent5)",
-                borderColor: "rgba(84,160,255,0.3)",
-              }}
-            >
-              <table>
-                <thead>
-                  <tr>
-                    <th>From</th>
-                    <th></th>
-                    <th>To</th>
-                    <th>Amount</th>
-                    <th>Proof</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {userSettlements.map((s, i) => renderRow(s, i, true))}
-                </tbody>
-              </table>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {userSettlements.map((s, i) => {
+                const fromIsUser = s.from === currentUser;
+                const toIsUser = s.to === currentUser;
+                const key = sKey(s);
+                const paid = paidSettlements[key];
+                const proof = proofOfPayment[key];
+                const proofUrl = proof?.path ? getProofUrl(syncConfig, proof.path) : null;
+                return (
+                  <div
+                    key={`u-${i}`}
+                    style={{
+                      borderRadius: 12,
+                      border: `1px solid ${paid ? "rgba(67,233,123,0.25)" : "rgba(84,160,255,0.3)"}`,
+                      background: paid ? "rgba(67,233,123,0.04)" : "rgba(84,160,255,0.04)",
+                      padding: "12px 14px",
+                      ...(paid ? { opacity: 0.65 } : {}),
+                    }}
+                  >
+                    {/* Flow: From → To + Amount */}
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "4px 8px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "0.85rem", flexWrap: "wrap" }}>
+                        <span style={{ fontWeight: fromIsUser ? 800 : 600, color: fromIsUser ? "var(--accent5)" : "var(--text)" }}>
+                          {fromIsUser ? "You" : s.from}
+                        </span>
+                        <span style={{ color: "var(--accent3)", fontSize: "0.75rem" }}>{"\u2192"}</span>
+                        <span style={{ fontWeight: toIsUser ? 800 : 600, color: toIsUser ? "var(--accent5)" : "var(--text)" }}>
+                          {toIsUser ? "You" : s.to}
+                        </span>
+                        {fromIsUser && !toIsUser && hasPaymentDetails(s.to) && (
+                          <motion.button
+                            whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.93 }}
+                            onClick={() => nameClick(s.to)}
+                            style={{
+                              background: "var(--gradient1)", border: "none", borderRadius: 20,
+                              padding: "3px 10px", fontSize: "0.62rem", fontWeight: 700,
+                              color: "white", cursor: "pointer", fontFamily: "Inter, sans-serif",
+                              letterSpacing: 0.5, textTransform: "uppercase",
+                              boxShadow: "0 2px 6px rgba(102,126,234,0.3)",
+                            }}
+                          >
+                            {"\u{1F4F7}"} QR
+                          </motion.button>
+                        )}
+                      </div>
+                      <span style={{ fontSize: "1rem", fontWeight: 800, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
+                        {"\u20B1"}{formatNum(s.amount)}
+                      </span>
+                    </div>
+
+                    {/* Partial payment progress */}
+                    {!paid && partialPayments[key] > 0 && (
+                      <div style={{
+                        marginTop: 8, padding: "8px 12px", borderRadius: 8,
+                        background: "rgba(254,202,87,0.08)", border: "1px solid rgba(254,202,87,0.2)",
+                      }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                          <span style={{ fontSize: "0.72rem", color: "var(--text2)" }}>
+                            Received {"\u20B1"}{formatNum(partialPayments[key])} of {"\u20B1"}{formatNum(s.amount)}
+                          </span>
+                          <span style={{ fontSize: "0.82rem", fontWeight: 700, color: "var(--accent1)" }}>
+                            Remaining: {"\u20B1"}{formatNum(Math.max(0, s.amount - partialPayments[key]))}
+                          </span>
+                        </div>
+                        <div style={{ marginTop: 6, height: 4, borderRadius: 2, background: "var(--surface3)", overflow: "hidden" }}>
+                          <div style={{ height: "100%", borderRadius: 2, background: "var(--accent2)", width: `${Math.min(100, (partialPayments[key] / s.amount) * 100)}%`, transition: "width 0.3s" }} />
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Actions row */}
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
+                      {/* Proof */}
+                      <div>
+                        {proofUrl ? (
+                          <button
+                            onClick={() => setProofModal({ key, url: proofUrl, settlement: s, paid: !!paid })}
+                            style={{
+                              background: "rgba(84,160,255,0.1)", border: "1px solid rgba(84,160,255,0.25)",
+                              borderRadius: 20, padding: "4px 12px", fontSize: "0.68rem", fontWeight: 700,
+                              color: "var(--accent5)", cursor: "pointer", fontFamily: "Inter, sans-serif",
+                            }}
+                          >
+                            {"\u{1F4CE}"} View Proof
+                          </button>
+                        ) : proof?.status === "declined" ? (
+                          <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                            <span
+                              style={{
+                                fontSize: "0.65rem", fontWeight: 700, color: "var(--accent1)",
+                                background: "rgba(255,107,107,0.12)", padding: "3px 10px", borderRadius: 12,
+                              }}
+                            >
+                              {"\u2718"} Declined{proof.declineReason ? `: ${proof.declineReason}` : ""}{proof.amountReceived > 0 ? ` (received \u20B1${formatNum(proof.amountReceived)})` : ""}
+                            </span>
+                            {fromIsUser && (
+                              <label
+                                style={{
+                                  display: "inline-flex", alignItems: "center", gap: 4,
+                                  background: "var(--surface3)", border: "1px dashed rgba(255,107,107,0.4)",
+                                  borderRadius: 20, padding: "3px 10px", fontSize: "0.65rem", fontWeight: 600,
+                                  color: "var(--accent1)", cursor: "pointer", fontFamily: "Inter, sans-serif",
+                                }}
+                              >
+                                {proofUploading === key ? (<><Spinner size={10} color="var(--accent1)" /> Uploading...</>) : (<>{"\u{1F4F7}"} Re-upload</>)}
+                                <input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" onChange={(e) => handleProofUpload(key, e)} style={{ display: "none" }} disabled={!!proofUploading} />
+                              </label>
+                            )}
+                          </div>
+                        ) : fromIsUser ? (
+                          <label
+                            style={{
+                              display: "inline-flex", alignItems: "center", gap: 4,
+                              background: "var(--surface3)", border: "1px dashed var(--border)",
+                              borderRadius: 20, padding: "4px 12px", fontSize: "0.68rem", fontWeight: 600,
+                              color: "var(--text2)", cursor: "pointer", fontFamily: "Inter, sans-serif",
+                            }}
+                          >
+                            {proofUploading === key ? (<><Spinner size={10} color="var(--text2)" /> Uploading...</>) : (<>{"\u{1F4F7}"} Upload Proof</>)}
+                            <input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" onChange={(e) => handleProofUpload(key, e)} style={{ display: "none" }} disabled={!!proofUploading} />
+                          </label>
+                        ) : (
+                          <span />
+                        )}
+                      </div>
+
+                      {/* Status */}
+                      <div>
+                        {paid ? (
+                          <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                            <span style={{ fontSize: "0.68rem", fontWeight: 700, color: "var(--green)", background: "rgba(67,233,123,0.12)", padding: "4px 12px", borderRadius: 20 }}>
+                              {"\u2713"} Paid
+                            </span>
+                            {toIsUser && (
+                              <button onClick={() => handleToggleSettlement(s)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "0.65rem", color: "var(--text2)", textDecoration: "underline", fontFamily: "Inter, sans-serif", padding: 0 }}>
+                                Undo
+                              </button>
+                            )}
+                          </span>
+                        ) : toIsUser && !(proof?.status === "declined" && !proof?.path) ? (
+                          <motion.button
+                            whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.93 }}
+                            onClick={() => handleToggleSettlement(s)}
+                            style={{
+                              background: "var(--gradient4)", border: "none", borderRadius: 20,
+                              padding: "5px 14px", fontSize: "0.68rem", fontWeight: 700,
+                              color: "#1a1a2e", cursor: "pointer", fontFamily: "Inter, sans-serif",
+                            }}
+                          >
+                            Confirm Paid
+                          </motion.button>
+                        ) : (
+                          <span style={{ fontSize: "0.68rem", color: "var(--text2)" }}>&mdash;</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
@@ -1045,28 +912,88 @@ export default function SettlementTab({ currentUser }) {
                 Other Settlements
               </div>
             )}
-            <div
-              style={{
-                overflowX: "auto",
-                borderRadius: 12,
-                border: "1px solid var(--border)",
-              }}
-            >
-              <table>
-                <thead>
-                  <tr>
-                    <th>From</th>
-                    <th></th>
-                    <th>To</th>
-                    <th>Amount</th>
-                    <th>Proof</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {otherSettlements.map((s, i) => renderRow(s, i, false))}
-                </tbody>
-              </table>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {otherSettlements.map((s, i) => {
+                const key = sKey(s);
+                const paid = paidSettlements[key];
+                const proof = proofOfPayment[key];
+                const proofUrl = proof?.path ? getProofUrl(syncConfig, proof.path) : null;
+                return (
+                  <div
+                    key={`o-${i}`}
+                    style={{
+                      borderRadius: 12,
+                      border: `1px solid ${paid ? "rgba(67,233,123,0.2)" : "var(--border)"}`,
+                      background: paid ? "rgba(67,233,123,0.03)" : "var(--surface2)",
+                      padding: "10px 14px",
+                      ...(paid ? { opacity: 0.55 } : {}),
+                    }}
+                  >
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "4px 8px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "0.82rem", flexWrap: "wrap" }}>
+                        <span style={{ fontWeight: 600, color: "var(--text)" }}>{s.from}</span>
+                        <span style={{ color: "var(--accent3)", fontSize: "0.72rem" }}>{"\u2192"}</span>
+                        <span style={{ fontWeight: 600, color: "var(--text)" }}>{s.to}</span>
+                      </div>
+                      <span style={{ fontSize: "0.92rem", fontWeight: 700, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
+                        {"\u20B1"}{formatNum(s.amount)}
+                      </span>
+                    </div>
+
+                    {/* Partial payment progress */}
+                    {!paid && partialPayments[key] > 0 && (
+                      <div style={{
+                        marginTop: 6, padding: "6px 10px", borderRadius: 8,
+                        background: "rgba(254,202,87,0.08)", border: "1px solid rgba(254,202,87,0.2)",
+                      }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                          <span style={{ fontSize: "0.68rem", color: "var(--text2)" }}>
+                            Received {"\u20B1"}{formatNum(partialPayments[key])} of {"\u20B1"}{formatNum(s.amount)}
+                          </span>
+                          <span style={{ fontSize: "0.75rem", fontWeight: 700, color: "var(--accent1)" }}>
+                            Remaining: {"\u20B1"}{formatNum(Math.max(0, s.amount - partialPayments[key]))}
+                          </span>
+                        </div>
+                        <div style={{ marginTop: 4, height: 3, borderRadius: 2, background: "var(--surface3)", overflow: "hidden" }}>
+                          <div style={{ height: "100%", borderRadius: 2, background: "var(--accent2)", width: `${Math.min(100, (partialPayments[key] / s.amount) * 100)}%`, transition: "width 0.3s" }} />
+                        </div>
+                      </div>
+                    )}
+
+                    {(proofUrl || proof?.status === "declined" || paid) && (
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
+                        {proofUrl && (
+                          <button
+                            onClick={() => setProofModal({ key, url: proofUrl, settlement: s, paid: !!paid })}
+                            style={{
+                              background: "rgba(84,160,255,0.1)", border: "1px solid rgba(84,160,255,0.25)",
+                              borderRadius: 20, padding: "3px 10px", fontSize: "0.65rem", fontWeight: 700,
+                              color: "var(--accent5)", cursor: "pointer", fontFamily: "Inter, sans-serif",
+                            }}
+                          >
+                            {"\u{1F4CE}"} View Proof
+                          </button>
+                        )}
+                        {proof?.status === "declined" && (
+                          <span
+                            style={{
+                              fontSize: "0.62rem", fontWeight: 700, color: "var(--accent1)",
+                              background: "rgba(255,107,107,0.12)", padding: "3px 10px", borderRadius: 12,
+                            }}
+                          >
+                            {"\u2718"} Declined{proof.declineReason ? `: ${proof.declineReason}` : ""}{proof.amountReceived > 0 ? ` (received \u20B1${formatNum(proof.amountReceived)})` : ""}
+                          </span>
+                        )}
+                        {paid && (
+                          <span style={{ fontSize: "0.65rem", fontWeight: 700, color: "var(--green)", background: "rgba(67,233,123,0.12)", padding: "3px 10px", borderRadius: 20 }}>
+                            {"\u2713"} Paid
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
@@ -1098,7 +1025,7 @@ export default function SettlementTab({ currentUser }) {
               let toMe = 0;
               let fromMe = 0;
               expensesByPair.forEach((pair) => {
-                const total = pair.expenses.reduce((s, e) => s + e.owedAmount, 0);
+                const total = pair.expenses.filter(e => !e.isPaid).reduce((s, e) => s + e.owedAmount, 0);
                 if (pair.to === currentUser) toMe += total;
                 if (pair.from === currentUser) fromMe += total;
               });
@@ -1176,7 +1103,11 @@ export default function SettlementTab({ currentUser }) {
               .map((pair, pi) => {
               const fromIsUser = currentUser && pair.from === currentUser;
               const toIsUser = currentUser && pair.to === currentUser;
-              const pairTotal = pair.expenses.reduce(
+              const pairTotal = pair.expenses.filter(e => !e.isPaid).reduce(
+                (s, e) => s + e.owedAmount,
+                0,
+              );
+              const paidTotal = pair.expenses.filter(e => e.isPaid).reduce(
                 (s, e) => s + e.owedAmount,
                 0,
               );
@@ -1207,6 +1138,21 @@ export default function SettlementTab({ currentUser }) {
                     >
                       &mdash; &#8369;{formatNum(pairTotal)}
                     </span>
+                    {paidTotal > 0.01 && (
+                      <span
+                        style={{
+                          marginLeft: 8,
+                          fontSize: "0.65rem",
+                          fontWeight: 600,
+                          color: "var(--green)",
+                          background: "rgba(67,233,123,0.1)",
+                          padding: "1px 8px",
+                          borderRadius: 10,
+                        }}
+                      >
+                        &#10003; &#8369;{formatNum(paidTotal)} paid
+                      </span>
+                    )}
                   </div>
                   <div
                     style={{
@@ -1231,11 +1177,13 @@ export default function SettlementTab({ currentUser }) {
                               ...(fromIsUser || toIsUser
                                 ? { background: "rgba(84,160,255,0.05)" }
                                 : {}),
+                              ...(exp.isPaid ? { opacity: 0.45 } : {}),
                             }}
                           >
                             <td style={{ fontSize: "0.82rem" }}>{exp.date}</td>
                             <td style={{ fontSize: "0.82rem" }}>
-                              {exp.description}
+                              <span style={exp.isPaid ? { textDecoration: "line-through" } : undefined}>{exp.description}</span>
+                              {exp.isPaid && <span style={{ marginLeft: 6, fontSize: "0.6rem", fontWeight: 700, color: "var(--green)", background: "rgba(67,233,123,0.12)", padding: "1px 6px", borderRadius: 8, textTransform: "uppercase", letterSpacing: 0.5 }}>Paid</span>}
                             </td>
                             <td
                               style={{
@@ -2093,17 +2041,30 @@ export default function SettlementTab({ currentUser }) {
                     </>
                   )}
                   {toIsUser && !proofModal.paid && (
-                    <Btn
-                      small
-                      variant="danger"
-                      onClick={() => {
-                        setProofModal(null);
-                        setDeclineModal({ key, settlement });
-                        setDeclineReason("");
-                      }}
-                    >
-                      {"\u2718"} Decline
-                    </Btn>
+                    <>
+                      <Btn
+                        small
+                        variant="success"
+                        onClick={() => {
+                          handleToggleSettlement(settlement);
+                          setProofModal(null);
+                        }}
+                      >
+                        {"\u2713"} Confirm Paid
+                      </Btn>
+                      <Btn
+                        small
+                        variant="danger"
+                        onClick={() => {
+                          setProofModal(null);
+                          setDeclineModal({ key, settlement });
+                          setDeclineReason("");
+                          setDeclineAmount("");
+                        }}
+                      >
+                        {"\u2718"} Decline
+                      </Btn>
+                    </>
                   )}
                   <Btn
                     small
@@ -2176,20 +2137,80 @@ export default function SettlementTab({ currentUser }) {
                 &#8369;{formatNum(declineModal.settlement.amount)}
               </span>
             </div>
-            <div
-              style={{
-                fontSize: "0.78rem",
-                color: "var(--text2)",
-                marginBottom: 8,
-              }}
-            >
-              Provide a reason for declining this proof:
+            {(() => {
+              const prevPaid = partialPayments[declineModal.key] || 0;
+              const remaining = Math.max(0, declineModal.settlement.amount - prevPaid);
+              return (
+                <>
+                  {prevPaid > 0 && (
+                    <div style={{
+                      fontSize: "0.75rem", color: "var(--text2)", marginBottom: 10,
+                      padding: "6px 10px", borderRadius: 8,
+                      background: "rgba(254,202,87,0.08)", border: "1px solid rgba(254,202,87,0.2)",
+                    }}>
+                      Previously received: <span style={{ fontWeight: 700, color: "var(--accent2)" }}>{"\u20B1"}{formatNum(prevPaid)}</span>
+                      {" "}&middot;{" "}
+                      Remaining: <span style={{ fontWeight: 700, color: "var(--accent1)" }}>{"\u20B1"}{formatNum(remaining)}</span>
+                    </div>
+                  )}
+                  <div style={{ fontSize: "0.78rem", color: "var(--text2)", marginBottom: 8 }}>
+                    Amount received {prevPaid > 0 ? "this time" : ""} (optional):
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+                    <div style={{ position: "relative", flex: 1 }}>
+                      <span style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--text2)", fontSize: "0.85rem", fontWeight: 600, pointerEvents: "none" }}>{"\u20B1"}</span>
+                      <input
+                        type="number"
+                        value={declineAmount}
+                        onChange={(e) => setDeclineAmount(e.target.value)}
+                        placeholder={`of ${formatNum(remaining)}`}
+                        min="0"
+                        max={remaining}
+                        step="0.01"
+                        style={{
+                          width: "100%",
+                          boxSizing: "border-box",
+                          background: "var(--surface3)",
+                          border: "1px solid var(--border)",
+                          borderRadius: 8,
+                          padding: "10px 10px 10px 28px",
+                          fontSize: "0.85rem",
+                          fontFamily: "Inter, sans-serif",
+                          color: "var(--text)",
+                        }}
+                      />
+                    </div>
+                    {declineAmount && Number(declineAmount) > 0 && (
+                      Number(declineAmount) >= remaining ? (
+                        <div style={{
+                          fontSize: "0.78rem", fontWeight: 700, color: "var(--green)",
+                          background: "rgba(67,233,123,0.1)", padding: "6px 12px", borderRadius: 8,
+                          whiteSpace: "nowrap",
+                        }}>
+                          {"\u2713"} Fully covered — will mark as paid
+                        </div>
+                      ) : (
+                        <div style={{
+                          fontSize: "0.78rem", fontWeight: 700, color: "var(--accent1)",
+                          background: "rgba(255,107,107,0.1)", padding: "6px 12px", borderRadius: 8,
+                          whiteSpace: "nowrap",
+                        }}>
+                          Short {"\u20B1"}{formatNum(remaining - Number(declineAmount))}
+                        </div>
+                      )
+                    )}
+                  </div>
+                </>
+              );
+            })()}
+            <div style={{ fontSize: "0.78rem", color: "var(--text2)", marginBottom: 8 }}>
+              Reason (optional):
             </div>
             <textarea
               value={declineReason}
               onChange={(e) => setDeclineReason(e.target.value)}
-              placeholder="e.g. Wrong amount, blurry screenshot, wrong recipient..."
-              rows={3}
+              placeholder="e.g. Short amount, blurry screenshot, wrong recipient..."
+              rows={2}
               style={{
                 width: "100%",
                 boxSizing: "border-box",
@@ -2202,7 +2223,6 @@ export default function SettlementTab({ currentUser }) {
                 fontFamily: "Inter, sans-serif",
                 color: "var(--text)",
               }}
-              autoFocus
             />
             <div
               style={{
@@ -2230,11 +2250,22 @@ export default function SettlementTab({ currentUser }) {
               </button>
               <button
                 onClick={() => {
-                  if (!declineReason.trim()) {
-                    dispatch(toast("Please add a reason.", "error"));
+                  const amt = Number(declineAmount) || 0;
+                  if (!declineReason.trim() && amt <= 0) {
+                    dispatch(toast("Please add a reason or the amount received.", "error"));
                     return;
                   }
-                  handleProofDecline(declineModal.key, declineReason.trim());
+                  const prevPaid = partialPayments[declineModal.key] || 0;
+                  const remaining = Math.max(0, declineModal.settlement.amount - prevPaid);
+                  if (amt > 0 && amt >= remaining) {
+                    handleProofDecline(declineModal.key, declineReason.trim(), remaining);
+                    const date = new Date().toISOString().slice(0, 10);
+                    dispatch(markSettlementPaid({ key: declineModal.key, confirmedBy: currentUser, date }));
+                    dispatch(toast("Full amount received — settlement marked as paid!"));
+                    setDeclineModal(null);
+                    return;
+                  }
+                  handleProofDecline(declineModal.key, declineReason.trim(), amt);
                   setDeclineModal(null);
                 }}
                 style={{

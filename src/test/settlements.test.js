@@ -112,32 +112,55 @@ describe('computeBalances', () => {
     expect(withoutPaid.balances).toEqual(withEmptyPaid.balances);
   });
 
-  it('excludes expenses marked in excludedExpenses', () => {
-    const expenses = [
-      { id: 'e1', amount: 300, paidBy: 'Alice', splitAmong: ['Alice', 'Bob', 'Charlie'] },
-      { id: 'e2', amount: 150, paidBy: 'Bob', splitAmong: ['Alice', 'Bob', 'Charlie'] },
-    ];
-    const excludedExpenses = { e1: { excludedBy: 'Admin', at: '2026-01-01' } };
-    const { personPaid, balances } = computeBalances(expenses, travelers, null, excludedExpenses);
-    expect(personPaid['Alice']).toBe(0);
-    expect(personPaid['Bob']).toBe(150);
-    const bob = balances.find(b => b.name === 'Bob');
-    expect(bob.balance).toBe(100);
+  it('does not change split when numberOfCars is 0', () => {
+    const expenses = [{ id: 'e1', amount: 300, paidBy: 'Alice', splitAmong: ['Alice'], category: 'fuel' }];
+    const { personShare } = computeBalances(expenses, travelers, null, 0);
+    expect(personShare['Alice']).toBe(300);
+    expect(personShare['Bob']).toBe(0);
+    expect(personShare['Charlie']).toBe(0);
   });
 
-  it('excludes both paid and excluded expenses independently', () => {
-    const expenses = [
-      { id: 'e1', amount: 300, paidBy: 'Alice', splitAmong: ['Alice', 'Bob', 'Charlie'] },
-      { id: 'e2', amount: 150, paidBy: 'Bob', splitAmong: ['Alice', 'Bob', 'Charlie'] },
-      { id: 'e3', amount: 90, paidBy: 'Charlie', splitAmong: ['Alice', 'Bob', 'Charlie'] },
-    ];
-    const paidExpenses = { e1: { confirmedBy: 'Bob' } };
-    const excludedExpenses = { e2: { excludedBy: 'Admin' } };
-    const { personPaid } = computeBalances(expenses, travelers, paidExpenses, excludedExpenses);
-    expect(personPaid['Alice']).toBe(0);
-    expect(personPaid['Bob']).toBe(0);
-    expect(personPaid['Charlie']).toBe(90);
+  it('splits car expenses among all travelers when numberOfCars > 0', () => {
+    const expenses = [{ id: 'e1', amount: 300, paidBy: 'Alice', splitAmong: ['Alice'], category: 'fuel' }];
+    const { personShare } = computeBalances(expenses, travelers, null, 2);
+    expect(personShare['Alice']).toBe(100);
+    expect(personShare['Bob']).toBe(100);
+    expect(personShare['Charlie']).toBe(100);
   });
+
+  it('applies car pooling to parking and toll categories', () => {
+    const expenses = [
+      { id: 'e1', amount: 150, paidBy: 'Alice', splitAmong: ['Alice'], category: 'parking' },
+      { id: 'e2', amount: 300, paidBy: 'Bob', splitAmong: ['Bob'], category: 'toll' },
+    ];
+    const { personShare } = computeBalances(expenses, travelers, null, 1);
+    expect(personShare['Alice']).toBe(150);
+    expect(personShare['Bob']).toBe(150);
+    expect(personShare['Charlie']).toBe(150);
+  });
+
+  it('does not apply car pooling to non-car categories', () => {
+    const expenses = [
+      { id: 'e1', amount: 300, paidBy: 'Alice', splitAmong: ['Alice'], category: 'fuel' },
+      { id: 'e2', amount: 600, paidBy: 'Bob', splitAmong: ['Alice', 'Bob'], category: 'meals' },
+    ];
+    const { personShare } = computeBalances(expenses, travelers, null, 2);
+    // fuel: 300 / 3 = 100 each
+    expect(personShare['Alice']).toBe(100 + 300); // fuel share + meals share
+    expect(personShare['Bob']).toBe(100 + 300);   // fuel share + meals share
+    expect(personShare['Charlie']).toBe(100);       // fuel share only
+  });
+
+  it('credits the payer correctly with car pooling', () => {
+    const expenses = [{ id: 'e1', amount: 300, paidBy: 'Alice', splitAmong: ['Alice'], category: 'toll' }];
+    const { personPaid, balances } = computeBalances(expenses, travelers, null, 1);
+    expect(personPaid['Alice']).toBe(300);
+    expect(personPaid['Bob']).toBe(0);
+    // Alice paid 300, share 100 → balance +200
+    const aliceBalance = balances.find(b => b.name === 'Alice');
+    expect(aliceBalance.balance).toBe(200);
+  });
+
 });
 
 describe('computeSettlements', () => {
