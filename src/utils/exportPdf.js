@@ -12,7 +12,7 @@ const GRAY = '#7f8c8d';
 const DARK = '#1a1a2e';
 const LIGHT_BG = '#f8f9fa';
 
-const catColors = { hotel: '#ff6b6b', meals: '#feca57', alcohol: '#ff9ff3', fuel: '#48dbfb', toll: '#a18cd1', entrance: '#54a0ff', others: '#8888aa' };
+const _catColors = { hotel: '#ff6b6b', meals: '#feca57', alcohol: '#ff9ff3', fuel: '#48dbfb', toll: '#a18cd1', entrance: '#54a0ff', others: '#8888aa' };
 
 function hexToRgb(hex) {
   const r = parseInt(hex.slice(1, 3), 16);
@@ -52,7 +52,7 @@ export function exportPdf({ trip, expenses, travelers, paidExpenses, paidSettlem
   const pageHeight = doc.internal.pageSize.getHeight();
 
   // Compute data
-  const { personPaid, personShare, balances } = computeBalances(expenses, travelers, null, numberOfCars || 0);
+  const { personPaid, personShare: _personShare, balances } = computeBalances(expenses, travelers, null, numberOfCars || 0);
   const settlements = computeSettlements(balances);
   const total = expenses.reduce((s, e) => s + e.amount, 0);
   const count = expenses.length;
@@ -127,7 +127,7 @@ export function exportPdf({ trip, expenses, travelers, paidExpenses, paidSettlem
   // Branding
   doc.setFontSize(7);
   doc.setTextColor(255, 255, 255);
-  doc.text('Pot of Greed Trip Report', pageWidth / 2, 56, { align: 'center' });
+  doc.text('GreedySplit Trip Report', pageWidth / 2, 56, { align: 'center' });
 
   let y = 68;
 
@@ -378,7 +378,7 @@ export function exportPdf({ trip, expenses, travelers, paidExpenses, paidSettlem
     doc.setFont('helvetica', 'italic');
     doc.setTextColor(...hexToRgb(GRAY));
     doc.text(
-      `Pot of Greed  |  Page ${p} of ${totalPages}  |  Generated ${new Date().toLocaleDateString('en-PH')}`,
+      `GreedySplit  |  Page ${p} of ${totalPages}  |  Generated ${new Date().toLocaleDateString('en-PH')}`,
       pageWidth / 2,
       pageHeight - 8,
       { align: 'center' },

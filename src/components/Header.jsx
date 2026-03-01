@@ -1,3 +1,4 @@
+// eslint-disable-next-line no-unused-vars
 import { motion } from "framer-motion";
 import { useTheme } from "../hooks/useTheme";
 
@@ -37,7 +38,7 @@ export default function Header() {
           marginBottom: 10,
         }}
       >
-        Pot of Greed
+        GreedySplit
       </motion.h1>
       <motion.p
         initial={{ opacity: 0 }}
@@ -45,7 +46,7 @@ export default function Header() {
         transition={{ delay: 0.2 }}
         style={{ color: "var(--text2)", fontSize: "1.05rem", fontWeight: 300 }}
       >
-        Draw two cards... or just split the bill
+        you're cooked if you're still using notes app
       </motion.p>
     </header>
   );
