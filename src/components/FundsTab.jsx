@@ -192,7 +192,7 @@ export default function FundsTab() {
 
   return (
     <>
-      <Card>
+      <Card className="funds-overview">
         <CardTitle icon="&#128176;" gradient="var(--gradient-primary)">Fund Overview</CardTitle>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 14 }}>
           <StatCard label="Total Collected" value={`₱${formatNum(totalCollected)}`} color="var(--green)" />
@@ -204,9 +204,9 @@ export default function FundsTab() {
         </div>
       </Card>
 
-      <Card>
+      <Card className="funds-hotel">
         <CardTitle icon="&#127976;" gradient="var(--gradient-primary)"
-          extra={isAdmin && <Btn small variant="primary" onClick={openHotelEdit}>&#9998; Edit</Btn>}
+          extra={isAdmin && <Btn small variant="primary" className="funds-hotel-edit" onClick={openHotelEdit}>&#9998; Edit</Btn>}
         >
           Hotel Cost
         </CardTitle>
@@ -220,6 +220,7 @@ export default function FundsTab() {
           {hotelNotes && <div><div style={{ fontSize: '0.72rem', color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>Notes</div><div style={{ color: 'var(--text2)' }}>{hotelNotes}</div></div>}
         </div>
 
+        <div className="funds-hotel-payments">
         <CardTitle icon="&#128181;" gradient="var(--gradient-success)"
           extra={isAdmin && <Btn small variant="success" onClick={openHotelPay}>+ Add Payment</Btn>}
         >
@@ -237,11 +238,12 @@ export default function FundsTab() {
           </table>
           {hotelPayments.length === 0 && <div style={{ textAlign: 'center', padding: 30, color: 'var(--text2)' }}>No payments yet.</div>}
         </div>
+        </div>
       </Card>
 
-      <Card>
+      <Card className="funds-dp">
         <CardTitle icon="&#128178;" gradient="var(--gradient-success)"
-          extra={isAdmin && <Btn small variant="success" onClick={openDp}>+ Collect DP</Btn>}
+          extra={isAdmin && <Btn small variant="success" className="funds-dp-collect" onClick={openDp}>+ Collect DP</Btn>}
         >
           DP Collection from Travelers
         </CardTitle>

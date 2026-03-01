@@ -270,7 +270,7 @@ export default function TripInfo() {
         )}
       </AnimatePresence>
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14 }}>
+              <div className="trip-details" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14 }}>
                 {[
                   { field: 'tripName', label: 'Trip Name', type: 'text', placeholder: 'e.g. EL Yu 2026' },
                   { field: 'tripDestination', label: 'Destination', type: 'text', placeholder: 'e.g. La Union' },
@@ -303,7 +303,7 @@ export default function TripInfo() {
               </div>
 
               {/* Car Pooling */}
-              <div style={{
+              <div className="carpool-section" style={{
                 marginTop: 22, padding: '16px 18px', borderRadius: 14,
                 background: numberOfCars > 0 ? 'rgba(72,219,251,0.04)' : 'var(--surface2)',
                 border: `1px solid ${numberOfCars > 0 ? 'rgba(72,219,251,0.2)' : 'var(--border)'}`,
@@ -400,7 +400,7 @@ export default function TripInfo() {
                 </div>
 
                 {isAdmin && (
-                  <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                  <div className="add-traveler-row" style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
                     <input
                       ref={travelerInputRef}
                       value={newName}
@@ -455,7 +455,7 @@ export default function TripInfo() {
                 )}
               </div>
 
-              <div style={{ marginTop: 30, paddingTop: 20, borderTop: '1px solid var(--border)' }}>
+              <div className="trip-admin" style={{ marginTop: 30, paddingTop: 20, borderTop: '1px solid var(--border)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.8rem' }}>
                     <span style={{
@@ -471,12 +471,12 @@ export default function TripInfo() {
                     {isAdmin ? (
                       <Btn small variant="ghost" onClick={doLock}>&#128274; Lock</Btn>
                     ) : (
-                      <Btn small variant="success" onClick={tryUnlock} disabled={isLockedOut}>&#128275; Unlock</Btn>
+                      <Btn small variant="success" className="trip-admin-unlock" onClick={tryUnlock} disabled={isLockedOut}>&#128275; Unlock</Btn>
                     )}
                   </div>
                 </div>
                 {isAdmin && (
-                  <div style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
+                  <div className="expense-lock-section" style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
                     <div style={{
                       fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase',
                       letterSpacing: 1, color: 'var(--text2)', marginBottom: 10, paddingLeft: 2,
@@ -536,7 +536,7 @@ export default function TripInfo() {
                   </div>
                 )}
                 {isAdmin && (
-                  <div style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
+                  <div className="nuke-section" style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
                       <Btn small variant="danger" onClick={handleClearAll} disabled={clearing || nukeCountdown !== null}>
                         {clearing ? (

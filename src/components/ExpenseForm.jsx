@@ -9,6 +9,8 @@ import { todayStr, formatNum } from '../utils/helpers';
 import { uploadReceipt } from '../utils/sync';
 import { useAdmin } from '../hooks/useAdmin';
 import { useCountdownTo } from '../hooks/useCountdownTo';
+import { useTutorial } from '../hooks/useTutorial';
+import Tutorial from './Tutorial';
 import { Btn, FormGroup, Spinner } from './UI';
 
 export default function ExpenseForm({ currentUser, onClose }) {
@@ -25,6 +27,15 @@ export default function ExpenseForm({ currentUser, onClose }) {
   const [uploadProgress, setUploadProgress] = useState(null);
   const lastSubmitRef = useRef(0);
   const [errors, setErrors] = useState({});
+  const formTutorial = useTutorial();
+
+  useEffect(() => {
+    if (!formTutorial.isTabDone('expense_form')) {
+      const t = setTimeout(() => formTutorial.startForTab('expense_form'), 400);
+      return () => clearTimeout(t);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const makeBlank = useCallback(() => ({
     date: todayStr(), category: '', description: '', amount: '',
@@ -177,17 +188,32 @@ export default function ExpenseForm({ currentUser, onClose }) {
               )}
             </div>
           </div>
-          <button
-            onClick={onClose}
-            style={{
-              background: 'var(--surface3)', border: 'none', borderRadius: 8,
-              width: 32, height: 32, cursor: 'pointer',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              color: 'var(--text2)', fontSize: '1rem',
-            }}
-          >
-            &#10005;
-          </button>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button
+              onClick={() => formTutorial.startForTab('expense_form')}
+              aria-label="Start form tutorial"
+              title="Start form tutorial"
+              style={{
+                background: 'var(--surface3)', border: 'none', borderRadius: 8,
+                width: 32, height: 32, cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: 'var(--text2)', fontSize: '1rem', fontWeight: 700, fontFamily: 'inherit',
+              }}
+            >
+              ?
+            </button>
+            <button
+              onClick={onClose}
+              style={{
+                background: 'var(--surface3)', border: 'none', borderRadius: 8,
+                width: 32, height: 32, cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: 'var(--text2)', fontSize: '1rem',
+              }}
+            >
+              &#10005;
+            </button>
+          </div>
         </div>
 
         <div className="expense-form-body" style={isExpenseLocked ? { opacity: 0.5, pointerEvents: 'none' } : {}}>
@@ -201,11 +227,13 @@ export default function ExpenseForm({ currentUser, onClose }) {
               {'\u{1F512}'} Expenses are locked for settlement. Contact the admin to unlock.
             </div>
           )}
-          <FormGroup label="Description" required error={errors.description}>
-            <input value={form.description} onChange={e => { set('description', e.target.value); setErrors(p => ({ ...p, description: undefined })); }} placeholder="e.g. Lunch at Flotsam" />
-          </FormGroup>
+          <div className="ef-description">
+            <FormGroup label="Description" required error={errors.description}>
+              <input value={form.description} onChange={e => { const v = e.target.value; set('description', v.charAt(0).toUpperCase() + v.slice(1)); setErrors(p => ({ ...p, description: undefined })); }} placeholder="e.g. Lunch at Flotsam" />
+            </FormGroup>
+          </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 10 }}>
+          <div className="ef-amounts" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 10 }}>
             <FormGroup label="Amount (&#8369;)" required error={errors.amount}>
               <input type="number" value={form.amount} onChange={e => { const v = e.target.value; if (v === '' || (parseFloat(v) <= 100000 && v.length <= 10)) { set('amount', v); setErrors(p => ({ ...p, amount: undefined })); } }} placeholder="0.00" min="0" max="100000" step="0.01" inputMode="decimal" />
             </FormGroup>
@@ -243,7 +271,7 @@ export default function ExpenseForm({ currentUser, onClose }) {
             </FormGroup>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: !currentUser ? '1fr 1fr' : '1fr', gap: 10, marginTop: 10 }}>
+          <div className="ef-receipt" style={{ display: 'grid', gridTemplateColumns: !currentUser ? '1fr 1fr' : '1fr', gap: 10, marginTop: 10 }}>
             <FormGroup label="Receipt">
               <input type="file" ref={fileRef} accept="image/*,.pdf" />
               {uploadProgress !== null && (
@@ -273,7 +301,7 @@ export default function ExpenseForm({ currentUser, onClose }) {
             )}
           </div>
 
-          <div style={{
+          <div className="ef-split" style={{
             marginTop: 16, padding: 16, background: 'var(--surface2)', borderRadius: 12,
             border: `1px solid ${errors.splitAmong ? 'var(--accent1)' : 'var(--border)'}`,
             transition: 'border-color 0.2s',
@@ -406,13 +434,14 @@ export default function ExpenseForm({ currentUser, onClose }) {
             )}
           </AnimatePresence>
 
-          <div style={{ marginTop: 18 }}>
+          <div className="ef-submit" style={{ marginTop: 18 }}>
             <Btn variant="success" onClick={handleSubmit} disabled={submitting} style={{ width: '100%', justifyContent: 'center' }}>
               {submitting ? <><Spinner size={16} color="#1a1a2e" /> Saving...</> : '+ Add Expense'}
             </Btn>
           </div>
         </div>
       </motion.div>
+      <Tutorial activeTab={formTutorial.activeTab} stepIndex={formTutorial.stepIndex} next={formTutorial.next} onDone={formTutorial.stop} />
     </motion.div>
   );
 }

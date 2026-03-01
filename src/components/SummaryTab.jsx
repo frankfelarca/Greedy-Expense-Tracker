@@ -198,7 +198,7 @@ export default function SummaryTab({ currentUser }) {
   return (
     <>
       <motion.div variants={stagger} initial="hidden" animate="visible">
-        <motion.div variants={fadeUp} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: 16 }}>
+        <motion.div className="summary-stats" variants={fadeUp} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: 16 }}>
           {stats.map(s => (
             <motion.div
               key={s.label}
@@ -231,6 +231,7 @@ export default function SummaryTab({ currentUser }) {
 
         {count > 0 && (
           <motion.button
+            className="summary-export-pdf"
             variants={fadeUp}
             whileHover={{ scale: 1.01, boxShadow: '0 4px 16px rgba(102,126,234,0.25)' }}
             whileTap={{ scale: 0.98 }}
@@ -306,7 +307,7 @@ export default function SummaryTab({ currentUser }) {
           );
         })()}
 
-        <Card>
+        <Card className="summary-persons">
           <CardTitle icon="&#128100;" gradient="var(--gradient-primary)">Per Person</CardTitle>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12 }}>
             {[...travelers].sort((a, b) => a.name === currentUser ? -1 : b.name === currentUser ? 1 : 0).map(t => {
@@ -388,7 +389,7 @@ export default function SummaryTab({ currentUser }) {
 
         {count > 0 && (
           <motion.div variants={fadeUp}>
-            <Card>
+            <Card className="summary-fun">
               <CardTitle icon="&#127942;" gradient="var(--gradient-success)">Fun Stats</CardTitle>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 10 }}>
                 {[
@@ -507,7 +508,7 @@ export default function SummaryTab({ currentUser }) {
           </motion.div>
         )}
 
-        <Card>
+        <Card className="summary-category">
           <CardTitle icon="&#128202;" gradient="var(--gradient-primary)">By Category</CardTitle>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {Object.entries(CAT_LABELS).map(([key, label]) => {

@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 // eslint-disable-next-line no-unused-vars
 import { AnimatePresence, motion } from 'framer-motion';
 import { useAdmin } from './hooks/useAdmin';
 import { useCountdownTo } from './hooks/useCountdownTo';
+import { useTutorial } from './hooks/useTutorial';
 import { resolveUser, hashName } from './utils/helpers';
 import { startAutoPolling, stopAutoPolling, fetchTokens, seedTokens } from './utils/sync';
 import Header from './components/Header';
@@ -15,6 +16,7 @@ import SummaryTab from './components/SummaryTab';
 import SettlementTab from './components/SettlementTab';
 import { Tabs, Btn, Toasts, Card, Modal, Spinner } from './components/UI';
 import PasswordModal from './components/PasswordModal';
+import Tutorial from './components/Tutorial';
 import { setPaymentInfo, setQrCode } from './store/tripSlice';
 import { toast } from './store/toastSlice';
 import { uploadQrCode, getQrUrl } from './utils/sync';
@@ -421,6 +423,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('expenses');
   const [expenseDrawerOpen, setExpenseDrawerOpen] = useState(false);
   const { isAdmin, showPasswordModal, handlePasswordSubmit, handlePasswordClose } = useAdmin();
+  const tutorial = useTutorial();
   const travelers = useSelector(s => s.trip.travelers);
   const expenseLockDate = useSelector(s => s.trip.expenseLockDate);
   const isExpenseLocked = expenseLockDate && new Date(expenseLockDate) <= new Date() && !isAdmin;
@@ -465,6 +468,29 @@ export default function App() {
       setShowPaymentSetup(true);
     }
   }, [loading, accepted, currentUser, userChecked]);
+
+  // Auto-trigger admin tutorial on first admin unlock
+  const adminTutorialFired = useRef(false);
+  useEffect(() => {
+    if (isAdmin && !adminTutorialFired.current && !tutorial.isTabDone('admin')) {
+      adminTutorialFired.current = true;
+      setActiveTab('trip');
+      setTimeout(() => tutorial.startForTab('admin'), 600);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAdmin]);
+
+  // Auto-trigger per-tab tutorial on tab change
+  const tutorialDelayRef = useRef(null);
+  useEffect(() => {
+    if (loading || !accepted || !userChecked || showPaymentSetup || tutorial.active) return;
+    clearTimeout(tutorialDelayRef.current);
+    if (!tutorial.isTabDone(activeTab)) {
+      tutorialDelayRef.current = setTimeout(() => tutorial.startForTab(activeTab), 500);
+    }
+    return () => clearTimeout(tutorialDelayRef.current);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, loading, accepted, userChecked, showPaymentSetup, tutorial.active, tutorial.isTabDone, tutorial.startForTab]);
 
   if (loading) {
     return <LoadingScreen />;
@@ -518,7 +544,7 @@ export default function App() {
 
   return (
     <div style={{ maxWidth: 1200, margin: '0 auto', padding: 20 }}>
-      <Header />
+      <Header onStartTutorial={currentUser ? () => tutorial.startForTab(isAdmin && activeTab === 'trip' ? 'admin' : activeTab) : undefined} />
 
       {/* Context Bar — merged user + lock status */}
       {(currentUser || isExpenseLocked || lockCountdown) && (
@@ -598,6 +624,7 @@ export default function App() {
       </AnimatePresence>
 
       <PaymentSetupModal open={showPaymentSetup} onClose={() => setShowPaymentSetup(false)} currentUser={currentUser} />
+      <Tutorial activeTab={tutorial.activeTab} stepIndex={tutorial.stepIndex} next={tutorial.next} onDone={tutorial.stop} isAdmin={isAdmin} setStepCount={tutorial.setStepCount} />
       <PasswordModal open={showPasswordModal} onSubmit={handlePasswordSubmit} onClose={handlePasswordClose} />
       <Toasts />
     </div>

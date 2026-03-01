@@ -2,7 +2,7 @@
 import { motion } from "framer-motion";
 import { useTheme } from "../hooks/useTheme";
 
-export default function Header() {
+export default function Header({ onStartTutorial }) {
   const { theme, toggleTheme } = useTheme();
 
   return (
@@ -30,22 +30,43 @@ export default function Header() {
           you're cooked if you're still using notes app
         </p>
       </motion.div>
-      <button
-        onClick={toggleTheme}
-        aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
-        title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
-        style={{
-          background: 'var(--surface2)',
-          WebkitBackdropFilter: 'blur(12px)',
-          backdropFilter: 'blur(12px)',
-          border: 'var(--glass-border)',
-          borderRadius: 10, width: 36, height: 36, cursor: 'pointer',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: '1.1rem', transition: 'all 0.2s', flexShrink: 0,
-        }}
-      >
-        {theme === 'dark' ? '\u2600\uFE0F' : '\u{1F319}'}
-      </button>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        {onStartTutorial && (
+          <button
+            onClick={onStartTutorial}
+            aria-label="Start tutorial"
+            title="Start tutorial"
+            style={{
+              background: 'var(--surface2)',
+              WebkitBackdropFilter: 'blur(12px)',
+              backdropFilter: 'blur(12px)',
+              border: 'var(--glass-border)',
+              borderRadius: 10, width: 36, height: 36, cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: '1rem', transition: 'all 0.2s', flexShrink: 0,
+              color: 'var(--text2)', fontWeight: 700, fontFamily: 'inherit',
+            }}
+          >
+            ?
+          </button>
+        )}
+        <button
+          onClick={toggleTheme}
+          aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+          title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+          style={{
+            background: 'var(--surface2)',
+            WebkitBackdropFilter: 'blur(12px)',
+            backdropFilter: 'blur(12px)',
+            border: 'var(--glass-border)',
+            borderRadius: 10, width: 36, height: 36, cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: '1.1rem', transition: 'all 0.2s', flexShrink: 0,
+          }}
+        >
+          {theme === 'dark' ? '\u2600\uFE0F' : '\u{1F319}'}
+        </button>
+      </div>
     </header>
   );
 }

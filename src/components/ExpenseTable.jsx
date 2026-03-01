@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { useSelector, useDispatch } from 'react-redux';
 import { deleteExpense, restoreExpense, updateExpense, markExpensePaid, unmarkExpensePaid } from '../store/tripSlice';
 import { toast } from '../store/toastSlice';
@@ -122,7 +123,7 @@ function EditModal({ exp, onClose }) {
 
         <div className="expense-form-body">
           <FormGroup label="Description" required error={errors.description}>
-            <input value={form.description} onChange={e => { set('description', e.target.value); setErrors(p => ({ ...p, description: undefined })); }} />
+            <input value={form.description} onChange={e => { const v = e.target.value; set('description', v.charAt(0).toUpperCase() + v.slice(1)); setErrors(p => ({ ...p, description: undefined })); }} />
           </FormGroup>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 10 }}>
@@ -462,7 +463,7 @@ export default function ExpenseTable({ currentUser }) {
             >
               <div className="expense-toolbar-body" style={{ padding: '0 16px 14px' }}>
                 <div className="filter-fields">
-                  <div className="filter-field">
+                  <div className="filter-field filter-field-category">
                     <label className="filter-label">Category</label>
                     <select value={filterCat} onChange={e => setFilterCat(e.target.value)}>
                       <option value="">All categories</option>
@@ -544,10 +545,10 @@ export default function ExpenseTable({ currentUser }) {
 
                 <div className="toolbar-actions-bottom" style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap', alignItems: 'center' }}>
                   <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-                    <button onClick={exportCSV} className="toolbar-btn" style={{ background: 'var(--surface3)', border: '1px solid var(--border)', borderRadius: 8, padding: '7px 14px', fontSize: '0.78rem', fontWeight: 600, color: 'var(--accent2)', cursor: 'pointer', fontFamily: 'Inter, sans-serif', display: 'inline-flex', alignItems: 'center', gap: 6, transition: 'all 0.2s' }}>
+                    <button onClick={exportCSV} className="toolbar-btn toolbar-btn-csv" style={{ background: 'var(--surface3)', border: '1px solid var(--border)', borderRadius: 8, padding: '7px 14px', fontSize: '0.78rem', fontWeight: 600, color: 'var(--accent2)', cursor: 'pointer', fontFamily: 'Inter, sans-serif', display: 'inline-flex', alignItems: 'center', gap: 6, transition: 'all 0.2s' }}>
                       {'\u{1F4E5}'} Export CSV
                     </button>
-                    <button onClick={() => window.print()} className="toolbar-btn" style={{ background: 'var(--surface3)', border: '1px solid var(--border)', borderRadius: 8, padding: '7px 14px', fontSize: '0.78rem', fontWeight: 600, color: 'var(--accent5)', cursor: 'pointer', fontFamily: 'Inter, sans-serif', display: 'inline-flex', alignItems: 'center', gap: 6, transition: 'all 0.2s' }}>
+                    <button onClick={() => window.print()} className="toolbar-btn toolbar-btn-print" style={{ background: 'var(--surface3)', border: '1px solid var(--border)', borderRadius: 8, padding: '7px 14px', fontSize: '0.78rem', fontWeight: 600, color: 'var(--accent5)', cursor: 'pointer', fontFamily: 'Inter, sans-serif', display: 'inline-flex', alignItems: 'center', gap: 6, transition: 'all 0.2s' }}>
                       {'\u{1F5A8}'} Print
                     </button>
                   </div>
@@ -569,7 +570,7 @@ export default function ExpenseTable({ currentUser }) {
               <th>Paid By</th>
               <th>Receipt</th>
               <th>Split</th>
-              <th className="no-print">Actions</th>
+              <th className="no-print expense-actions-col">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -756,7 +757,7 @@ export default function ExpenseTable({ currentUser }) {
           )}
         </div>
       )}
-      {receiptModal && (
+      {receiptModal && createPortal(
         <div
           onClick={() => setReceiptModal(null)}
           style={{
@@ -811,9 +812,13 @@ export default function ExpenseTable({ currentUser }) {
               )}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
-      {editModal && <EditModal exp={editModal} onClose={() => setEditModal(null)} currentUser={currentUser} />}
+      {editModal && createPortal(
+        <EditModal exp={editModal} onClose={() => setEditModal(null)} currentUser={currentUser} />,
+        document.body
+      )}
     </Card>
   );
 }

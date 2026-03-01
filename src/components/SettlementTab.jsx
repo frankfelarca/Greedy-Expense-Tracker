@@ -499,7 +499,7 @@ export default function SettlementTab({ currentUser }) {
     <>
       <div className="settlement-grid">
       <div className="settlement-col">
-      <Card>
+      <Card className="settlement-debts">
         <CardTitle icon="&#129309;" gradient="var(--gradient-success)">
           Who Owes Whom
         </CardTitle>
@@ -1186,7 +1186,7 @@ export default function SettlementTab({ currentUser }) {
       )}
 
       {currentUser && (
-        <Card>
+        <Card className="settlement-payment-info">
           <CardTitle icon="&#128179;" gradient="var(--gradient-primary)">
             Your Payment Details
           </CardTitle>
@@ -1416,7 +1416,7 @@ export default function SettlementTab({ currentUser }) {
       )}
       </div>
 
-      <div className="settlement-col">
+      <div className="settlement-col settlement-proofs">
         {expensesByPair.length > 0 && (
           <Card>
             <div
