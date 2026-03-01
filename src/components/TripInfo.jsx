@@ -30,7 +30,6 @@ export default function TripInfo() {
   const { isAdmin, requireAdmin, countdown, tryUnlock, doLock, isLockedOut, lockoutCountdown, showPasswordModal, handlePasswordSubmit, handlePasswordClose } = useAdmin();
   const [newName, setNewName] = useState('');
   const travelerInputRef = useRef(null);
-  const [collapsed, setCollapsed] = useState(true);
   const [errors, setErrors] = useState({});
   const [clearing, setClearing] = useState(false);
   const [nukeCountdown, setNukeCountdown] = useState(null);
@@ -240,104 +239,10 @@ export default function TripInfo() {
     dispatch(toast('Nuke aborted. Data lives to see another day.'));
   };
 
-  const summaryParts = [
-    tripName,
-    tripDestination,
-    [tripStart, tripEnd].filter(Boolean).join(' - '),
-  ].filter(Boolean);
-  const summaryText = summaryParts.length > 0 ? summaryParts.join(' · ') : null;
-
   return (
     <>
-    <Card style={{ overflow: 'hidden' }}>
-      <motion.div
-        onClick={() => setCollapsed(c => !c)}
-        whileHover={{ backgroundColor: 'rgba(255,255,255,0.03)' }}
-        style={{
-          cursor: 'pointer',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          margin: -24,
-          padding: '20px 24px',
-          borderRadius: 'var(--radius)',
-          transition: 'background 0.15s',
-          marginBottom: collapsed ? -24 : 0,
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, flex: 1 }}>
-          <span style={{
-            width: 36, height: 36, borderRadius: 10, flexShrink: 0,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: '1.1rem', background: 'var(--gradient1)',
-          }}>
-            &#9992;
-          </span>
-          <div style={{ minWidth: 0, flex: 1 }}>
-            <div style={{ fontSize: '1.15rem', fontWeight: 700 }}>Trip Info</div>
-            <AnimatePresence mode="wait">
-              {collapsed && summaryText && (
-                <motion.div
-                  key="summary"
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
-                  transition={{ duration: 0.15 }}
-                  style={{ fontSize: '0.78rem', color: 'var(--text2)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-                >
-                  {summaryText}
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-          {collapsed && travelers.length > 0 && (
-            <div style={{ display: 'flex', marginRight: 4 }}>
-              {travelers.slice(0, 5).map((t, i) => (
-                <span
-                  key={t.name}
-                  title={t.name}
-                  style={{
-                    width: 24, height: 24, borderRadius: '50%',
-                    background: t.color, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: '0.6rem', fontWeight: 700, color: '#fff',
-                    border: '2px solid var(--surface)',
-                    marginLeft: i > 0 ? -8 : 0,
-                    zIndex: 5 - i,
-                  }}
-                >
-                  {t.name.charAt(0).toUpperCase()}
-                </span>
-              ))}
-              {travelers.length > 5 && (
-                <span style={{
-                  width: 24, height: 24, borderRadius: '50%',
-                  background: 'var(--surface2)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: '0.58rem', fontWeight: 700, color: 'var(--text2)',
-                  border: '2px solid var(--surface)',
-                  marginLeft: -8,
-                }}>
-                  +{travelers.length - 5}
-                </span>
-              )}
-            </div>
-          )}
-          <motion.span
-            animate={{ rotate: collapsed ? 0 : 180 }}
-            transition={{ duration: 0.2, ease: 'easeInOut' }}
-            style={{
-              width: 28, height: 28, borderRadius: 8,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              background: 'var(--surface2)', color: 'var(--text2)',
-              fontSize: '0.7rem',
-            }}
-          >
-            &#9660;
-          </motion.span>
-        </div>
-      </motion.div>
+    <Card>
+      <CardTitle icon="&#9992;" gradient="var(--gradient-primary)">Trip Info</CardTitle>
 
       <AnimatePresence>
         {isAdmin && dirty && (
@@ -350,9 +255,10 @@ export default function TripInfo() {
           >
             <div style={{
               display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              padding: '10px 18px',
-              borderBottom: '1px solid var(--border)',
-              background: 'rgba(67,233,123,0.04)',
+              padding: '10px 18px', marginBottom: 16,
+              borderRadius: 10,
+              background: 'rgba(52,211,153,0.04)',
+              border: '1px solid rgba(52,211,153,0.15)',
             }}>
               <span style={{ fontSize: '0.75rem', color: 'var(--text2)' }}>You have unsaved changes</span>
               <div style={{ display: 'flex', gap: 8 }}>
@@ -364,16 +270,6 @@ export default function TripInfo() {
         )}
       </AnimatePresence>
 
-      <AnimatePresence initial={false}>
-        {!collapsed && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.25, ease: 'easeInOut' }}
-            style={{ overflow: 'hidden' }}
-          >
-            <div style={{ paddingTop: 20 }}>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14 }}>
                 {[
                   { field: 'tripName', label: 'Trip Name', type: 'text', placeholder: 'e.g. EL Yu 2026' },
@@ -394,11 +290,11 @@ export default function TripInfo() {
                       onChange={e => handleDraftChange(f.field, e.target.value, f.type)}
                       style={{
                         ...(!isAdmin ? { opacity: 0.6, cursor: 'not-allowed' } : {}),
-                        ...(errors[f.field] ? { borderColor: '#ff6b6b' } : {}),
+                        ...(errors[f.field] ? { borderColor: 'var(--accent1)' } : {}),
                       }}
                     />
                     {errors[f.field] && (
-                      <span style={{ color: '#ff6b6b', fontSize: '0.72rem', marginTop: 4, display: 'block' }}>
+                      <span style={{ color: 'var(--accent1)', fontSize: '0.72rem', marginTop: 4, display: 'block' }}>
                         {errors[f.field]}
                       </span>
                     )}
@@ -463,14 +359,14 @@ export default function TripInfo() {
                   {numberOfCars > 0 && ' This is currently active and affects settlement calculations.'}
                 </div>
                 {errors.numberOfCars && (
-                  <span style={{ color: '#ff6b6b', fontSize: '0.72rem', marginTop: 6, display: 'block' }}>
+                  <span style={{ color: 'var(--accent1)', fontSize: '0.72rem', marginTop: 6, display: 'block' }}>
                     {errors.numberOfCars}
                   </span>
                 )}
               </div>
 
               <div style={{ marginTop: 22 }}>
-                <CardTitle icon="&#128101;" gradient="var(--gradient5)">
+                <CardTitle icon="&#128101;" gradient="var(--gradient-primary)">
                   Travelers ({travelers.length}/{maxTravelers})
                 </CardTitle>
 
@@ -564,7 +460,7 @@ export default function TripInfo() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.8rem' }}>
                     <span style={{
                       width: 8, height: 8, borderRadius: '50%',
-                      background: isLockedOut ? '#ff9ff3' : isAdmin ? '#43e97b' : '#ff6b6b',
+                      background: isLockedOut ? 'var(--accent4)' : isAdmin ? 'var(--green)' : 'var(--accent1)',
                       display: 'inline-block',
                     }} />
                     <span style={{ color: 'var(--text2)' }}>
@@ -675,10 +571,6 @@ export default function TripInfo() {
                   </div>
                 )}
               </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </Card>
     <PasswordModal open={showPasswordModal} onSubmit={handlePasswordSubmit} onClose={handlePasswordClose} />
     <Modal open={!!firstTravelerModal} onClose={() => { if (firstTravelerModal) window.location.href = firstTravelerModal.link; }}>
@@ -697,7 +589,7 @@ export default function TripInfo() {
               }).catch(() => { /* ignored */ });
             }}
             style={{
-              background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 8,
+              background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8,
               padding: '10px 14px', fontSize: '0.78rem', wordBreak: 'break-all', cursor: 'pointer',
               color: 'var(--accent5)', lineHeight: 1.5, marginBottom: 16,
             }}

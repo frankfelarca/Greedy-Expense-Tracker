@@ -8,7 +8,7 @@ import { computeBalances, computeSettlements } from '../utils/settlements';
 import { Card, CardTitle } from './UI';
 import { exportPdf } from '../utils/exportPdf';
 
-const catColors = { hotel: '#ff6b6b', meals: '#feca57', alcohol: '#ff9ff3', fuel: '#48dbfb', toll: '#a18cd1', parking: '#a18cd1', entrance: '#54a0ff', others: '#8888aa' };
+const catColors = { hotel: '#f87171', meals: '#fbbf24', alcohol: '#f472b6', fuel: '#38bdf8', toll: '#a78bfa', parking: '#a78bfa', entrance: '#818cf8', others: '#94a3b8' };
 const CAR_CATEGORIES = ['parking', 'toll', 'fuel'];
 
 const stagger = { hidden: {}, visible: { transition: { staggerChildren: 0.05 } } };
@@ -269,7 +269,7 @@ export default function SummaryTab({ currentUser }) {
               )}
               {showCard && (
                 <Card>
-                  <CardTitle icon={'\u{1F697}'} gradient="var(--gradient3)">Car Expenses</CardTitle>
+                  <CardTitle icon={'\u{1F697}'} gradient="var(--gradient-primary)">Car Expenses</CardTitle>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10, marginBottom: 14 }}>
                     <div style={{ background: 'var(--surface2)', borderRadius: 10, padding: '12px 14px', border: '1px solid var(--border)' }}>
                       <div style={{ fontSize: '0.62rem', color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: 0.8, fontWeight: 600 }}>Total</div>
@@ -307,7 +307,7 @@ export default function SummaryTab({ currentUser }) {
         })()}
 
         <Card>
-          <CardTitle icon="&#128100;" gradient="var(--gradient5)">Per Person</CardTitle>
+          <CardTitle icon="&#128100;" gradient="var(--gradient-primary)">Per Person</CardTitle>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12 }}>
             {[...travelers].sort((a, b) => a.name === currentUser ? -1 : b.name === currentUser ? 1 : 0).map(t => {
               const paid = personPaid[t.name] || 0;
@@ -321,9 +321,9 @@ export default function SummaryTab({ currentUser }) {
                   variants={fadeUp}
                   whileHover={{ y: -2 }}
                   style={{
-                    background: isMe ? 'rgba(84,160,255,0.06)' : 'var(--surface2)',
+                    background: isMe ? 'rgba(129,140,248,0.06)' : 'var(--surface2)',
                     borderRadius: 14, padding: 18,
-                    border: `1.5px solid ${isMe ? 'rgba(84,160,255,0.3)' : 'var(--border)'}`,
+                    border: `1.5px solid ${isMe ? 'rgba(129,140,248,0.3)' : 'var(--border)'}`,
                     position: 'relative', overflow: 'hidden',
                   }}
                 >
@@ -369,8 +369,8 @@ export default function SummaryTab({ currentUser }) {
 
                   <div style={{
                     padding: '8px 12px', borderRadius: 8,
-                    background: balance >= 0 ? 'rgba(67,233,123,0.1)' : 'rgba(255,107,107,0.1)',
-                    border: `1px solid ${balance >= 0 ? 'rgba(67,233,123,0.2)' : 'rgba(255,107,107,0.2)'}`,
+                    background: balance >= 0 ? 'rgba(52,211,153,0.1)' : 'rgba(248,113,113,0.1)',
+                    border: `1px solid ${balance >= 0 ? 'rgba(52,211,153,0.2)' : 'rgba(248,113,113,0.2)'}`,
                     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                   }}>
                     <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text2)' }}>
@@ -389,7 +389,7 @@ export default function SummaryTab({ currentUser }) {
         {count > 0 && (
           <motion.div variants={fadeUp}>
             <Card>
-              <CardTitle icon="&#127942;" gradient="var(--gradient6)">Fun Stats</CardTitle>
+              <CardTitle icon="&#127942;" gradient="var(--gradient-success)">Fun Stats</CardTitle>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 10 }}>
                 {[
                   topSpenders.length > 0 && {
@@ -508,7 +508,7 @@ export default function SummaryTab({ currentUser }) {
         )}
 
         <Card>
-          <CardTitle icon="&#128202;" gradient="var(--gradient3)">By Category</CardTitle>
+          <CardTitle icon="&#128202;" gradient="var(--gradient-primary)">By Category</CardTitle>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {Object.entries(CAT_LABELS).map(([key, label]) => {
               const amt = catTotals[key] || 0;

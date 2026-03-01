@@ -7,7 +7,6 @@ import { useCountdownTo } from './hooks/useCountdownTo';
 import { resolveUser, hashName } from './utils/helpers';
 import { startAutoPolling, stopAutoPolling, fetchTokens, seedTokens } from './utils/sync';
 import Header from './components/Header';
-import SyncBar from './components/SyncBar';
 import TripInfo from './components/TripInfo';
 import ExpenseForm from './components/ExpenseForm';
 import ExpenseTable from './components/ExpenseTable';
@@ -26,6 +25,7 @@ const TABS = [
   { key: 'funds', label: 'Funds', icon: '\u{1F4B0}' },
   { key: 'summary', label: 'Summary', icon: '\u{1F4CA}' },
   { key: 'settlement', label: 'Settlement', icon: '\u{1F91D}' },
+  { key: 'trip', label: 'Trip', icon: '\u2708' },
 ];
 
 function TermsModal({ open, onAccept }) {
@@ -64,7 +64,7 @@ function PaymentSetupModal({ open, onClose, currentUser }) {
   const [removedQrs, setRemovedQrs] = useState({});
   const [initialized, setInitialized] = useState(false);
 
-  useEffect(() => {  
+  useEffect(() => {
     if (open && !initialized) {
       setForm({
         gcash: existingInfo?.gcash || '',
@@ -170,8 +170,8 @@ function PaymentSetupModal({ open, onClose, currentUser }) {
       <div style={{ textAlign: 'center', marginBottom: 20 }}>
         <div style={{
           width: 52, height: 52, borderRadius: 16, margin: '0 auto 12px',
-          background: 'var(--gradient1)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: '1.5rem', boxShadow: '0 4px 16px rgba(102,126,234,0.3)',
+          background: 'var(--gradient-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: '1.5rem', boxShadow: '0 4px 16px rgba(99,102,241,0.3)',
         }}>
           &#128179;
         </div>
@@ -188,7 +188,7 @@ function PaymentSetupModal({ open, onClose, currentUser }) {
           return (
             <div key={f.key} style={{
               padding: 14, borderRadius: 12,
-              background: 'var(--surface2)', border: `1px solid ${errors[f.key] ? 'rgba(255,107,107,0.4)' : hasValue ? 'rgba(67,233,123,0.25)' : 'var(--border)'}`,
+              background: 'var(--surface2)', border: `1px solid ${errors[f.key] ? 'rgba(248,113,113,0.4)' : hasValue ? 'rgba(52,211,153,0.25)' : 'var(--border)'}`,
               transition: 'all 0.2s',
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
@@ -199,7 +199,7 @@ function PaymentSetupModal({ open, onClose, currentUser }) {
                 {hasValue && !errors[f.key] && (
                   <span style={{
                     marginLeft: 'auto', fontSize: '0.62rem', fontWeight: 700, textTransform: 'uppercase',
-                    letterSpacing: 0.5, color: 'var(--green)', background: 'rgba(0,210,211,0.15)',
+                    letterSpacing: 0.5, color: 'var(--green)', background: 'rgba(52,211,153,0.15)',
                     padding: '2px 8px', borderRadius: 20,
                   }}>{'\u2713'} Added</span>
                 )}
@@ -247,7 +247,7 @@ function PaymentSetupModal({ open, onClose, currentUser }) {
                       <button
                         onClick={() => handleQrRemove(f.key)}
                         style={{
-                          flex: 1, background: 'none', border: '1px solid rgba(255,107,107,0.3)', borderRadius: 8,
+                          flex: 1, background: 'none', border: '1px solid rgba(248,113,113,0.3)', borderRadius: 8,
                           padding: '6px 0', fontSize: '0.7rem', fontWeight: 600,
                           cursor: 'pointer', color: 'var(--accent1)', transition: 'all 0.2s',
                           fontFamily: 'Inter, sans-serif',
@@ -290,7 +290,7 @@ function PaymentSetupModal({ open, onClose, currentUser }) {
         ) : (
           <div style={{
             padding: 14, borderRadius: 12, background: 'var(--surface2)',
-            border: `1px solid ${(customForm.label && customForm.number) ? 'rgba(67,233,123,0.25)' : 'var(--border)'}`,
+            border: `1px solid ${(customForm.label && customForm.number) ? 'rgba(52,211,153,0.25)' : 'var(--border)'}`,
             transition: 'all 0.2s',
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
@@ -301,7 +301,7 @@ function PaymentSetupModal({ open, onClose, currentUser }) {
               {customForm.label && customForm.number && (
                 <span style={{
                   marginLeft: 'auto', fontSize: '0.62rem', fontWeight: 700, textTransform: 'uppercase',
-                  letterSpacing: 0.5, color: 'var(--green)', background: 'rgba(0,210,211,0.15)',
+                  letterSpacing: 0.5, color: 'var(--green)', background: 'rgba(52,211,153,0.15)',
                   padding: '2px 8px', borderRadius: 20,
                 }}>{'\u2713'} Added</span>
               )}
@@ -345,7 +345,7 @@ function PaymentSetupModal({ open, onClose, currentUser }) {
                       <button
                         onClick={() => handleQrRemove('custom')}
                         style={{
-                          flex: 1, background: 'none', border: '1px solid rgba(255,107,107,0.3)', borderRadius: 8,
+                          flex: 1, background: 'none', border: '1px solid rgba(248,113,113,0.3)', borderRadius: 8,
                           padding: '6px 0', fontSize: '0.7rem', fontWeight: 600,
                           cursor: 'pointer', color: 'var(--accent1)', transition: 'all 0.2s',
                           fontFamily: 'Inter, sans-serif',
@@ -372,7 +372,7 @@ function PaymentSetupModal({ open, onClose, currentUser }) {
               onClick={() => { setCustomForm(null); handleQrRemove('custom'); }}
               style={{
                 marginTop: 10, width: '100%', background: 'none',
-                border: '1px solid rgba(255,107,107,0.3)', borderRadius: 8,
+                border: '1px solid rgba(248,113,113,0.3)', borderRadius: 8,
                 padding: '6px 0', fontSize: '0.7rem', fontWeight: 600,
                 cursor: 'pointer', color: 'var(--accent1)', transition: 'all 0.2s',
                 fontFamily: 'Inter, sans-serif',
@@ -386,7 +386,7 @@ function PaymentSetupModal({ open, onClose, currentUser }) {
 
       <div style={{ display: 'flex', gap: 10 }}>
         <Btn variant="success" onClick={handleSave} disabled={uploading} style={{ flex: 1 }}>
-          {uploading ? <><Spinner size={16} color="#1a1a2e" /> Saving...</> : <><span>&#10003;</span> Save</>}
+          {uploading ? <><Spinner size={16} color="#fff" /> Saving...</> : <><span>&#10003;</span> Save</>}
         </Btn>
         <Btn variant="ghost" onClick={handleSkip} disabled={uploading} style={{ flex: 1 }}>
           Skip for Now
@@ -419,6 +419,7 @@ export default function App() {
   const [accepted, setAccepted] = useState(() => localStorage.getItem('termsAccepted') === 'true');
   const [showPaymentSetup, setShowPaymentSetup] = useState(false);
   const [activeTab, setActiveTab] = useState('expenses');
+  const [expenseDrawerOpen, setExpenseDrawerOpen] = useState(false);
   const { isAdmin, showPasswordModal, handlePasswordSubmit, handlePasswordClose } = useAdmin();
   const travelers = useSelector(s => s.trip.travelers);
   const expenseLockDate = useSelector(s => s.trip.expenseLockDate);
@@ -518,60 +519,82 @@ export default function App() {
   return (
     <div style={{ maxWidth: 1200, margin: '0 auto', padding: 20 }}>
       <Header />
-      {/* <SyncBar /> */}
 
-      {currentUser && (
-        <Card className="no-print" style={{ padding: '8px 20px', marginBottom: 16, background: 'rgba(84,160,255,0.08)', border: '1px solid rgba(84,160,255,0.2)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.84rem' }}>
-            <span>&#128100;</span>
-            <span style={{ color: 'var(--text2)' }}>Logged in as</span>
-            <strong style={{ color: 'var(--accent5)' }}>{currentUser}</strong>
-          </div>
-        </Card>
+      {/* Context Bar — merged user + lock status */}
+      {(currentUser || isExpenseLocked || lockCountdown) && (
+        <div className="context-bar no-print">
+          {currentUser && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span>&#128100;</span>
+              <span style={{ color: 'var(--text2)' }}>Logged in as</span>
+              <strong style={{ color: 'var(--accent5)' }}>{currentUser}</strong>
+            </div>
+          )}
+          {(isExpenseLocked || lockCountdown) && currentUser && (
+            <span style={{ color: 'var(--border)', fontSize: '0.6rem' }}>|</span>
+          )}
+          {isExpenseLocked && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--accent1)', fontWeight: 600, fontSize: '0.82rem' }}>
+              <span>{'\u{1F512}'}</span>
+              <span>Expenses locked</span>
+            </div>
+          )}
+          {!isExpenseLocked && lockCountdown && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--accent2)', fontWeight: 600, fontSize: '0.82rem' }}>
+              <span>{'\u{1F552}'}</span>
+              <span>Locks in <span style={{ fontVariantNumeric: 'tabular-nums' }}>{lockCountdown}</span></span>
+            </div>
+          )}
+        </div>
       )}
 
-      {isExpenseLocked && (
-        <Card className="no-print" style={{ padding: '10px 20px', marginBottom: 16, background: 'rgba(255,107,107,0.08)', border: '1px solid rgba(255,107,107,0.2)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.84rem', color: 'var(--accent1)', fontWeight: 600 }}>
-            <span>{`\u{1F512}`}</span>
-            <span>Expenses are locked for settlement. Contact the admin to unlock.</span>
-          </div>
-        </Card>
-      )}
-
-      {!isExpenseLocked && lockCountdown && (
-        <Card className="no-print" style={{ padding: '10px 20px', marginBottom: 16, background: 'rgba(254,202,87,0.08)', border: '1px solid rgba(254,202,87,0.2)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.84rem', color: 'var(--accent2)', fontWeight: 600 }}>
-            <span>{`\u{1F552}`}</span>
-            <span>Expenses will lock in <span style={{ fontVariantNumeric: 'tabular-nums' }}>{lockCountdown}</span></span>
-          </div>
-        </Card>
-      )}
-
-      <TripInfo />
-
-      <div className="no-print">
-        <ExpenseForm currentUser={currentUser} />
+      {/* Sticky Tabs */}
+      <div className="sticky-tabs no-print">
+        <Tabs tabs={TABS} active={activeTab} onChange={setActiveTab} />
       </div>
 
-      <Tabs tabs={TABS} active={activeTab} onChange={setActiveTab} />
+      <div style={{ marginTop: 20 }}>
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={activeTab}
+            role="tabpanel"
+            id={`tabpanel-${activeTab}`}
+            aria-labelledby={`tab-${activeTab}`}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.2 }}
+          >
+            {activeTab === 'expenses' && <ExpenseTable currentUser={currentUser} />}
+            {activeTab === 'funds' && <FundsTab />}
+            {activeTab === 'summary' && <SummaryTab currentUser={currentUser} />}
+            {activeTab === 'settlement' && <SettlementTab currentUser={currentUser} />}
+            {activeTab === 'trip' && <TripInfo />}
+          </motion.div>
+        </AnimatePresence>
+      </div>
 
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={activeTab}
-          role="tabpanel"
-          id={`tabpanel-${activeTab}`}
-          aria-labelledby={`tab-${activeTab}`}
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -10 }}
-          transition={{ duration: 0.2 }}
+      {/* FAB for adding expenses */}
+      {activeTab === 'expenses' && !isExpenseLocked && (
+        <motion.button
+          className="fab no-print"
+          onClick={() => setExpenseDrawerOpen(true)}
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          aria-label="Add expense"
         >
-          {activeTab === 'expenses' && <ExpenseTable currentUser={currentUser} />}
-          {activeTab === 'funds' && <FundsTab />}
-          {activeTab === 'summary' && <SummaryTab currentUser={currentUser} />}
-          {activeTab === 'settlement' && <SettlementTab currentUser={currentUser} />}
-        </motion.div>
+          +
+        </motion.button>
+      )}
+
+      {/* Expense Drawer */}
+      <AnimatePresence>
+        {expenseDrawerOpen && (
+          <ExpenseForm
+            currentUser={currentUser}
+            onClose={() => setExpenseDrawerOpen(false)}
+          />
+        )}
       </AnimatePresence>
 
       <PaymentSetupModal open={showPaymentSetup} onClose={() => setShowPaymentSetup(false)} currentUser={currentUser} />

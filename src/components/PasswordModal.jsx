@@ -25,7 +25,7 @@ export default function PasswordModal({ open, onSubmit, onClose }) {
           <span style={{
             width: 36, height: 36, borderRadius: 10,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: '1.1rem', background: 'var(--gradient1)',
+            fontSize: '1.1rem', background: 'var(--gradient-primary)',
           }}>
             &#128274;
           </span>

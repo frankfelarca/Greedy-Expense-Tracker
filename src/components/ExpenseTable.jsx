@@ -198,7 +198,7 @@ function EditModal({ exp, onClose }) {
               {uploadProgress !== null && (
                 <div style={{ marginTop: 6 }}>
                   <div style={{ height: 6, borderRadius: 3, background: 'var(--surface3)', overflow: 'hidden' }}>
-                    <div style={{ width: `${uploadProgress}%`, height: '100%', borderRadius: 3, background: 'var(--gradient4)', transition: 'width 0.2s' }} />
+                    <div style={{ width: `${uploadProgress}%`, height: '100%', borderRadius: 3, background: 'var(--gradient-primary)', transition: 'width 0.2s' }} />
                   </div>
                   <div style={{ fontSize: '0.7rem', color: 'var(--text2)', marginTop: 3 }}>Uploading... {uploadProgress}%</div>
                 </div>

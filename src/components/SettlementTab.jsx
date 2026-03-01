@@ -500,7 +500,7 @@ export default function SettlementTab({ currentUser }) {
       <div className="settlement-grid">
       <div className="settlement-col">
       <Card>
-        <CardTitle icon="&#129309;" gradient="var(--gradient4)">
+        <CardTitle icon="&#129309;" gradient="var(--gradient-success)">
           Who Owes Whom
         </CardTitle>
 
@@ -798,7 +798,7 @@ export default function SettlementTab({ currentUser }) {
                             whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.93 }}
                             onClick={() => nameClick(s.to)}
                             style={{
-                              background: "var(--gradient1)", border: "none", borderRadius: 20,
+                              background: "var(--gradient-primary)", border: "none", borderRadius: 20,
                               padding: "3px 10px", fontSize: "0.62rem", fontWeight: 700,
                               color: "white", cursor: "pointer", fontFamily: "Inter, sans-serif",
                               letterSpacing: 0.5, textTransform: "uppercase",
@@ -908,7 +908,7 @@ export default function SettlementTab({ currentUser }) {
                             whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.93 }}
                             onClick={() => handleToggleSettlement(s)}
                             style={{
-                              background: "var(--gradient4)", border: "none", borderRadius: 20,
+                              background: "var(--gradient-success)", border: "none", borderRadius: 20,
                               padding: "5px 14px", fontSize: "0.68rem", fontWeight: 700,
                               color: "#1a1a2e", cursor: "pointer", fontFamily: "Inter, sans-serif",
                             }}
@@ -1041,7 +1041,7 @@ export default function SettlementTab({ currentUser }) {
 
       {excessByCollector.length > 0 && totalExcess > 0.01 && (
         <Card>
-          <CardTitle icon="&#128176;" gradient="var(--gradient4)">
+          <CardTitle icon="&#128176;" gradient="var(--gradient-success)">
             DP Excess Returns
           </CardTitle>
           <div
@@ -1187,7 +1187,7 @@ export default function SettlementTab({ currentUser }) {
 
       {currentUser && (
         <Card>
-          <CardTitle icon="&#128179;" gradient="var(--gradient1)">
+          <CardTitle icon="&#128179;" gradient="var(--gradient-primary)">
             Your Payment Details
           </CardTitle>
           <div
@@ -1401,7 +1401,7 @@ export default function SettlementTab({ currentUser }) {
             onClick={handleInfoSave}
             disabled={!infoDirty}
             style={{
-              background: infoDirty ? "var(--gradient4)" : "var(--surface3)",
+              background: infoDirty ? "var(--gradient-success)" : "var(--surface3)",
               color: infoDirty ? "#1a1a2e" : "var(--text2)",
               border: "none", borderRadius: 10, padding: "10px 20px",
               fontFamily: "Inter, sans-serif", fontSize: "0.88rem", fontWeight: 600,
@@ -1426,7 +1426,7 @@ export default function SettlementTab({ currentUser }) {
                 cursor: "pointer", userSelect: "none", marginBottom: breakdownOpen ? 0 : -8,
               }}
             >
-              <CardTitle icon="&#128203;" gradient="var(--gradient3)">
+              <CardTitle icon="&#128203;" gradient="var(--gradient-primary)">
                 Expense Breakdown
               </CardTitle>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -1506,7 +1506,7 @@ export default function SettlementTab({ currentUser }) {
                       border: "none",
                       background:
                         breakdownFilter === f.key
-                          ? "var(--gradient1)"
+                          ? "var(--gradient-primary)"
                           : "var(--surface3)",
                       color:
                         breakdownFilter === f.key ? "white" : "var(--text2)",
@@ -1727,7 +1727,7 @@ export default function SettlementTab({ currentUser }) {
                               border: "none",
                               background:
                                 activeKey === w.key
-                                  ? "var(--gradient1)"
+                                  ? "var(--gradient-primary)"
                                   : "var(--surface3)",
                               color:
                                 activeKey === w.key ? "white" : "var(--text2)",

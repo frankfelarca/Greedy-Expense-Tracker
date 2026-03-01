@@ -193,7 +193,7 @@ export default function FundsTab() {
   return (
     <>
       <Card>
-        <CardTitle icon="&#128176;" gradient="var(--gradient5)">Fund Overview</CardTitle>
+        <CardTitle icon="&#128176;" gradient="var(--gradient-primary)">Fund Overview</CardTitle>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 14 }}>
           <StatCard label="Total Collected" value={`₱${formatNum(totalCollected)}`} color="var(--green)" />
           <StatCard label="Hotel Cost" value={`₱${formatNum(hotelCost)}`} color="var(--accent1)" />
@@ -205,7 +205,7 @@ export default function FundsTab() {
       </Card>
 
       <Card>
-        <CardTitle icon="&#127976;" gradient="var(--gradient1)"
+        <CardTitle icon="&#127976;" gradient="var(--gradient-primary)"
           extra={isAdmin && <Btn small variant="primary" onClick={openHotelEdit}>&#9998; Edit</Btn>}
         >
           Hotel Cost
@@ -220,7 +220,7 @@ export default function FundsTab() {
           {hotelNotes && <div><div style={{ fontSize: '0.72rem', color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>Notes</div><div style={{ color: 'var(--text2)' }}>{hotelNotes}</div></div>}
         </div>
 
-        <CardTitle icon="&#128181;" gradient="var(--gradient4)"
+        <CardTitle icon="&#128181;" gradient="var(--gradient-success)"
           extra={isAdmin && <Btn small variant="success" onClick={openHotelPay}>+ Add Payment</Btn>}
         >
           Payments to Hotel
@@ -240,7 +240,7 @@ export default function FundsTab() {
       </Card>
 
       <Card>
-        <CardTitle icon="&#128178;" gradient="var(--gradient2)"
+        <CardTitle icon="&#128178;" gradient="var(--gradient-success)"
           extra={isAdmin && <Btn small variant="success" onClick={openDp}>+ Collect DP</Btn>}
         >
           DP Collection from Travelers
@@ -264,7 +264,7 @@ export default function FundsTab() {
           })}
         </div>
 
-        <CardTitle icon="&#128203;" gradient="var(--gradient3)"
+        <CardTitle icon="&#128203;" gradient="var(--gradient-primary)"
           extra={isAdmin && selectedDp.length > 0 && <Btn small variant="danger" onClick={handleDeleteSelectedDp}>&#128465; Delete ({selectedDp.length})</Btn>}
         >
           Collection Log

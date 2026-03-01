@@ -4,31 +4,27 @@ import { useSelector, useDispatch } from 'react-redux';
 import { dismissToast } from '../store/toastSlice';
 
 const gradients = {
-  primary: 'var(--gradient1)',
-  success: 'var(--gradient4)',
-  danger: 'var(--gradient2)',
-  info: 'var(--gradient3)',
-  warm: 'var(--gradient5)',
+  primary: 'var(--gradient-primary)',
+  success: 'var(--gradient-success)',
+  danger: 'var(--gradient-danger)',
   ghost: 'var(--surface3)',
 };
 
 const textColors = {
   primary: 'white',
-  success: '#1a1a2e',
+  success: '#fff',
   danger: 'white',
-  info: '#1a1a2e',
-  warm: '#1a1a2e',
   ghost: 'var(--text2)',
 };
 
 export function Btn({ variant = 'primary', small, children, style, ...props }) {
   return (
     <motion.button
-      whileHover={{ y: -2, boxShadow: '0 6px 20px rgba(0,0,0,0.3)' }}
+      whileHover={{ y: -2, boxShadow: '0 6px 20px rgba(0,0,0,0.25)' }}
       whileTap={{ y: 0 }}
       style={{
-        background: gradients[variant],
-        color: textColors[variant],
+        background: gradients[variant] || gradients.primary,
+        color: textColors[variant] || 'white',
         border: 'none',
         borderRadius: small ? 8 : 10,
         padding: small ? '6px 12px' : '10px 20px',
@@ -57,7 +53,9 @@ export function Card({ children, style, ...props }) {
       transition={{ duration: 0.3 }}
       style={{
         background: 'var(--surface)',
-        border: '1px solid var(--border)',
+        WebkitBackdropFilter: 'blur(var(--glass-blur))',
+        backdropFilter: 'blur(var(--glass-blur))',
+        border: 'var(--glass-border)',
         borderRadius: 'var(--radius)',
         padding: 24,
         marginBottom: 20,
@@ -71,7 +69,7 @@ export function Card({ children, style, ...props }) {
   );
 }
 
-export function CardTitle({ icon, gradient = 'var(--gradient1)', children, extra }) {
+export function CardTitle({ icon, gradient = 'var(--gradient-primary)', children, extra }) {
   return (
     <div style={{ fontSize: '1.15rem', fontWeight: 700, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 10 }}>
       {icon && (
@@ -100,6 +98,8 @@ export function Badge({ className, children, style }) {
         fontSize: '0.73rem',
         fontWeight: 600,
         whiteSpace: 'nowrap',
+        WebkitBackdropFilter: 'blur(8px)',
+        backdropFilter: 'blur(8px)',
         ...style,
       }}
     >
@@ -120,7 +120,9 @@ export function Modal({ open, onClose, children, borderColor = 'var(--accent5)',
           role="presentation"
           style={{
             position: 'fixed', inset: 0,
-            background: 'rgba(0,0,0,0.75)',
+            background: 'rgba(0,0,0,0.6)',
+            WebkitBackdropFilter: 'blur(8px)',
+            backdropFilter: 'blur(8px)',
             zIndex: 10000,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             padding: 20,
@@ -138,8 +140,10 @@ export function Modal({ open, onClose, children, borderColor = 'var(--accent5)',
             onKeyDown={(e) => { if (e.key === 'Escape' && onClose) onClose(); }}
             tabIndex={-1}
             style={{
-              background: 'var(--surface)',
-              border: `2px solid ${borderColor}`,
+              background: 'var(--surface2)',
+              WebkitBackdropFilter: 'blur(24px)',
+              backdropFilter: 'blur(24px)',
+              border: `1px solid ${borderColor}`,
               borderRadius: 16,
               padding: 30,
               maxWidth: 520,
@@ -180,10 +184,12 @@ export function StatCard({ label, value, color }) {
       whileHover={{ scale: 1.03 }}
       style={{
         background: 'var(--surface2)',
+        WebkitBackdropFilter: 'blur(var(--glass-blur))',
+        backdropFilter: 'blur(var(--glass-blur))',
         borderRadius: 12,
         padding: 18,
         textAlign: 'center',
-        border: '1px solid var(--border)',
+        border: 'var(--glass-border)',
       }}
     >
       <div style={{ fontSize: '0.72rem', color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>{label}</div>
@@ -207,12 +213,13 @@ export function FormGroup({ label, required, error, children }) {
 
 export function Tabs({ tabs, active, onChange }) {
   return (
-    <div className="no-print" role="tablist" aria-label="Main navigation" style={{
+    <div className="no-print tab-bar" role="tablist" aria-label="Main navigation" style={{
       display: 'flex',
       gap: 4,
-      marginBottom: 20,
       background: 'var(--surface)',
-      border: '1px solid var(--border)',
+      WebkitBackdropFilter: 'blur(var(--glass-blur))',
+      backdropFilter: 'blur(var(--glass-blur))',
+      border: 'var(--glass-border)',
       borderRadius: 14,
       padding: 4,
     }}>
@@ -270,9 +277,9 @@ export function Tabs({ tabs, active, onChange }) {
                 style={{
                   position: 'absolute',
                   inset: 0,
-                  background: 'var(--gradient1)',
+                  background: 'var(--gradient-primary)',
                   borderRadius: 10,
-                  boxShadow: '0 4px 16px rgba(102,126,234,0.35)',
+                  boxShadow: '0 4px 16px rgba(99,102,241,0.35)',
                   zIndex: -1,
                 }}
               />
@@ -290,8 +297,8 @@ export function Toasts() {
   const toasts = useSelector(s => s.toast.toasts);
   const dispatch = useDispatch();
 
-  const bg = { success: 'var(--gradient4)', error: 'var(--gradient2)', warning: 'var(--gradient5)' };
-  const fg = { success: '#1a1a2e', error: 'white', warning: '#1a1a2e' };
+  const bg = { success: 'var(--gradient-success)', error: 'var(--gradient-danger)', warning: 'linear-gradient(135deg, #fbbf24, #d97706)' };
+  const fg = { success: '#fff', error: 'white', warning: '#1a1a2e' };
 
   return (
     <div aria-live="polite" aria-atomic="false" role="status" style={{ position: 'fixed', bottom: 24, right: 24, zIndex: 99999, display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -305,6 +312,8 @@ export function Toasts() {
             onClick={() => !t.undoId && dispatch(dismissToast(t.id))}
             style={{
               background: bg[t.type] || bg.success,
+              WebkitBackdropFilter: 'blur(12px)',
+              backdropFilter: 'blur(12px)',
               color: fg[t.type] || fg.success,
               padding: '14px 24px',
               borderRadius: 12,
