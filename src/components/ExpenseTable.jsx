@@ -7,6 +7,7 @@ import { formatNum } from '../utils/helpers';
 import { getReceiptUrl, uploadReceipt } from '../utils/sync';
 import { useAdmin } from '../hooks/useAdmin';
 import { Card, Btn, Badge, FormGroup, Spinner } from './UI';
+// eslint-disable-next-line no-unused-vars
 import { AnimatePresence, motion } from 'framer-motion';
 
 const catStyles = {
@@ -21,7 +22,7 @@ const catStyles = {
 
 const CAR_CATS = ['parking', 'toll', 'fuel'];
 
-function EditModal({ exp, onClose, currentUser }) {
+function EditModal({ exp, onClose }) {
   const dispatch = useDispatch();
   const travelers = useSelector(s => s.trip.travelers);
   const numberOfCars = useSelector(s => s.trip.numberOfCars) || 0;
@@ -308,7 +309,7 @@ export default function ExpenseTable({ currentUser }) {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const syncConfig = useSelector(s => s.sync);
   const expenseLockDate = useSelector(s => s.trip.expenseLockDate);
-  const { isAdmin, requireAdmin } = useAdmin();
+  const { isAdmin } = useAdmin();
   const isExpenseLocked = expenseLockDate && new Date(expenseLockDate) <= new Date() && !isAdmin;
   const [receiptModal, setReceiptModal] = useState(null);
   const [editModal, setEditModal] = useState(null);
@@ -362,7 +363,6 @@ export default function ExpenseTable({ currentUser }) {
     deletedRef.current[undoId] = exp;
     dispatch(deleteExpense(exp.id));
     dispatch(toast('Expense deleted.', 'success', undoId));
-    setSelected(prev => prev.filter(s => s !== exp.id));
   };
 
   const viewReceipt = (exp) => {

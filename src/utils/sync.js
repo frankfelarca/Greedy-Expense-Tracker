@@ -225,6 +225,10 @@ let unsubscribe = null;
 let _skipNextListener = false;
 let _onFirstLoad = null;
 
+export function skipNextSync() {
+  _skipNextListener = true;
+}
+
 export function startAutoPolling(dispatch, onReady) {
   if (unsubscribe) { if (onReady) onReady(); return; }
   if (!isConfigured) { if (onReady) onReady(); return; }

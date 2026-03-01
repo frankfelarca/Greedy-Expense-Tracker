@@ -1,15 +1,16 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
+// eslint-disable-next-line no-unused-vars
 import { motion, AnimatePresence } from 'framer-motion';
 import { setTripField, addTraveler, removeTraveler, clearAll, setExpenseLockDate } from '../store/tripSlice';
 import { toast } from '../store/toastSlice';
 import { useAdmin } from '../hooks/useAdmin';
-import { Card, CardTitle, Btn, FormGroup } from './UI';
+import { Card, CardTitle, Btn, FormGroup, Modal } from './UI';
 import PasswordModal from './PasswordModal';
 import { ref, remove } from 'firebase/database';
 import { db } from '../utils/firebase';
 import { CONTAINER } from '../utils/constants';
-import { writeToken, deactivateToken, reactivateToken, fetchTokens } from '../utils/sync';
+import { writeToken, deactivateToken, reactivateToken, fetchTokens, skipNextSync } from '../utils/sync';
 import { hashName } from '../utils/helpers';
 import { useCountdownTo } from '../hooks/useCountdownTo';
 
@@ -28,12 +29,14 @@ export default function TripInfo() {
   const expenseLockDate = useSelector(s => s.trip.expenseLockDate);
   const { isAdmin, requireAdmin, countdown, tryUnlock, doLock, isLockedOut, lockoutCountdown, showPasswordModal, handlePasswordSubmit, handlePasswordClose } = useAdmin();
   const [newName, setNewName] = useState('');
+  const travelerInputRef = useRef(null);
   const [collapsed, setCollapsed] = useState(true);
   const [errors, setErrors] = useState({});
   const [clearing, setClearing] = useState(false);
   const [nukeCountdown, setNukeCountdown] = useState(null);
   const nukeTimerRef = useRef(null);
   const [lockDraft, setLockDraft] = useState('');
+  const [firstTravelerModal, setFirstTravelerModal] = useState(null);
   const { countdown: lockCountdown } = useCountdownTo(expenseLockDate);
 
   const storeFields = { tripName, tripDestination, tripStart, tripEnd, maxTravelers, numberOfCars };
@@ -144,15 +147,22 @@ export default function TripInfo() {
       if (!name) return;
       if (travelers.length >= maxTravelers) { dispatch(toast(`Max ${maxTravelers} travelers!`, 'error')); return; }
       if (travelers.some(t => t.name.toLowerCase() === name.toLowerCase())) { dispatch(toast('Name already exists!', 'error')); return; }
+      const isFirst = travelers.length === 0;
       dispatch(addTraveler(name));
       setNewName('');
+      requestAnimationFrame(() => travelerInputRef.current?.focus());
       try {
         const hash = await hashName(name);
         const tokens = await fetchTokens();
+        skipNextSync();
         if (tokens[hash]) {
           await reactivateToken(hash);
         } else {
           await writeToken(hash, name);
+        }
+        if (isFirst) {
+          const base = window.location.origin + window.location.pathname;
+          setFirstTravelerModal({ name, link: `${base}?u=${hash}` });
         }
       } catch (e) {
         console.error('Token write error:', e);
@@ -166,6 +176,7 @@ export default function TripInfo() {
       dispatch(removeTraveler(index));
       try {
         const hash = await hashName(name);
+        skipNextSync();
         await deactivateToken(hash);
       } catch (e) {
         console.error('Token deactivate error:', e);
@@ -495,6 +506,7 @@ export default function TripInfo() {
                 {isAdmin && (
                   <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
                     <input
+                      ref={travelerInputRef}
                       value={newName}
                       onChange={e => { const v = e.target.value; setNewName(v.charAt(0).toUpperCase() + v.slice(1)); }}
                       onKeyDown={e => e.key === 'Enter' && handleAddTraveler()}
@@ -669,6 +681,39 @@ export default function TripInfo() {
       </AnimatePresence>
     </Card>
     <PasswordModal open={showPasswordModal} onSubmit={handlePasswordSubmit} onClose={handlePasswordClose} />
+    <Modal open={!!firstTravelerModal} onClose={() => { if (firstTravelerModal) window.location.href = firstTravelerModal.link; }}>
+      {firstTravelerModal && (
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: '2rem', marginBottom: 12 }}>{'\u{1F517}'}</div>
+          <h3 style={{ color: 'var(--accent5)', marginBottom: 8 }}>Save Your Invite Link</h3>
+          <p style={{ color: 'var(--text2)', fontSize: '0.85rem', lineHeight: 1.6, marginBottom: 16 }}>
+            <strong style={{ color: 'var(--text)' }}>{firstTravelerModal.name}</strong> has been added as the first traveler.
+            Copy the invite link below &mdash; you will need it to access the app next time.
+          </p>
+          <div
+            onClick={() => {
+              navigator.clipboard.writeText(firstTravelerModal.link).then(() => {
+                dispatch(toast(`Invite link for ${firstTravelerModal.name} copied!`));
+              }).catch(() => { /* ignored */ });
+            }}
+            style={{
+              background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 8,
+              padding: '10px 14px', fontSize: '0.78rem', wordBreak: 'break-all', cursor: 'pointer',
+              color: 'var(--accent5)', lineHeight: 1.5, marginBottom: 16,
+            }}
+          >
+            {firstTravelerModal.link}
+          </div>
+          <p style={{ color: 'var(--text2)', fontSize: '0.75rem', marginBottom: 16 }}>Tap the link above to copy</p>
+          <Btn variant="primary" onClick={() => {
+            navigator.clipboard.writeText(firstTravelerModal.link).then(() => {
+              dispatch(toast(`Invite link for ${firstTravelerModal.name} copied!`));
+            }).catch(() => { /* ignored */ });
+            window.location.href = firstTravelerModal.link;
+          }}>Copy &amp; Go to My Link</Btn>
+        </div>
+      )}
+    </Modal>
     </>
   );
 }

@@ -1,3 +1,4 @@
+/* global __ADMIN_SALT__, __ADMIN_HASH__ */
 export function sanitize(str) {
   if (typeof str !== "string") return str;
   return str
@@ -20,6 +21,7 @@ export function promptPassword(msg = "Enter admin password:") {
   return pw;
 }
 
+ 
 export async function checkPassword(pw) {
   if (!pw) return false;
   const encoded = new TextEncoder().encode(__ADMIN_SALT__ + pw);

@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
+// eslint-disable-next-line no-unused-vars
 import { motion, AnimatePresence } from 'framer-motion';
 import { addExpense } from '../store/tripSlice';
 import { toast } from '../store/toastSlice';
@@ -129,7 +130,7 @@ export default function ExpenseForm({ currentUser }) {
     } else {
       finish(null);
     }
-  }, [form, submitting, currentUser, dispatch, syncConfig, makeBlank]);
+  }, [form, submitting, currentUser, dispatch, syncConfig, makeBlank, isExpenseLocked]);
 
   const perPerson = form.amount && form.splitAmong.length > 0
     ? parseFloat(form.amount) / form.splitAmong.length

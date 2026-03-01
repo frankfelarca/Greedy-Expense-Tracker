@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { useSelector } from 'react-redux';
+// eslint-disable-next-line no-unused-vars
 import { motion } from 'framer-motion';
 import { CAT_LABELS, CAT_ICONS } from '../utils/constants';
 import { formatNum } from '../utils/helpers';
@@ -35,16 +36,16 @@ export default function SummaryTab({ currentUser }) {
   );
 
   const { total, count, travelerCount, catTotals, maxCat, perPerson,
-    topCategory, topSpenders, leastSpenders,
+    topCategory: _topCategory, topSpenders, leastSpenders,
     mostOwesAll, mostOwesVal, mostOwedAll, mostOwedVal,
-    mostTransactionsAll, mostTxVal, leastTransactionsAll, leastTxVal,
+    mostTransactionsAll: _mostTransactionsAll, mostTxVal: _mostTxVal, leastTransactionsAll, leastTxVal,
     mostCreditorsAll, mostCreditorsVal, owesToMostAll, owesToMostVal,
     topPersonalAll, topPersonalVal,
     highestShareAll, highestShareVal, lowestShareAll, lowestShareVal,
     mostTreatedAll, mostTreatedVal, mostGenerousAll, mostGenerousVal,
     mostExpensiveDay, alcoholKingAll, alcoholKingVal, foodieAll, foodieVal,
-    biggestTreat, freqPairAll, freqPairVal,
-    biggestExpense, smallestExpense, avgExpense, joinNames } = useMemo(() => {
+    biggestTreat, freqPairAll: _freqPairAll, freqPairVal: _freqPairVal,
+    biggestExpense, smallestExpense, avgExpense: _avgExpense, joinNames } = useMemo(() => {
     const total = expenses.reduce((s, e) => s + e.amount, 0);
     const count = expenses.length;
     const travelerCount = travelers.length;

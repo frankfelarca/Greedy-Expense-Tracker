@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
+// eslint-disable-next-line no-unused-vars
 import { AnimatePresence, motion } from 'framer-motion';
 import { useAdmin } from './hooks/useAdmin';
 import { useCountdownTo } from './hooks/useCountdownTo';
@@ -50,7 +51,7 @@ function TermsModal({ open, onAccept }) {
 function PaymentSetupModal({ open, onClose, currentUser }) {
   const dispatch = useDispatch();
   const syncConfig = useSelector(s => s.sync);
-  const existingInfo = useSelector(s => s.trip.paymentInfo?.[currentUser]) || {};
+  const existingInfo = useSelector(s => s.trip.paymentInfo?.[currentUser]);
   const existingQr = useSelector(s => s.trip.qrCodes?.[currentUser]) || {};
   const normalizedQr = typeof existingQr === 'string' ? { gcash: existingQr } : existingQr;
 
@@ -63,14 +64,14 @@ function PaymentSetupModal({ open, onClose, currentUser }) {
   const [removedQrs, setRemovedQrs] = useState({});
   const [initialized, setInitialized] = useState(false);
 
-  useEffect(() => {
+  useEffect(() => {  
     if (open && !initialized) {
       setForm({
-        gcash: existingInfo.gcash || '',
-        maya: existingInfo.maya || '',
-        maribank: existingInfo.maribank || '',
+        gcash: existingInfo?.gcash || '',
+        maya: existingInfo?.maya || '',
+        maribank: existingInfo?.maribank || '',
       });
-      const savedCustom = existingInfo.custom || null;
+      const savedCustom = existingInfo?.custom || null;
       setCustomForm(savedCustom ? { label: savedCustom.label || '', number: savedCustom.number || '' } : null);
       setQrFiles({});
       setQrPreviews({});
@@ -162,7 +163,7 @@ function PaymentSetupModal({ open, onClose, currentUser }) {
     onClose();
   };
 
-  const hasAnyData = form.gcash || form.maya || form.maribank || (customForm && (customForm.label || customForm.number)) || Object.keys(qrFiles).length > 0;
+
 
   return (
     <Modal open={open} onClose={() => {}}>
@@ -496,7 +497,7 @@ export default function App() {
     );
   }
 
-  if (travelers.length > 0 && userChecked && !currentUser) {
+  if (travelers.length > 0 && userChecked && !currentUser && !isAdmin) {
     return (
       <div style={{ maxWidth: 1200, margin: '0 auto', padding: 20 }}>
         <Header />

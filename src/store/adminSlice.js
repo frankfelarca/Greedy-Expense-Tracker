@@ -16,14 +16,26 @@ function loadLockout() {
         return { failedAttempts, lockedOutAt: null };
       }
     }
-  } catch (e) {}
+  } catch { /* ignored */ }
   return { failedAttempts: 0, lockedOutAt: null };
+}
+
+function loadUnlockedAt() {
+  try {
+    const t = localStorage.getItem('adminUnlockedAt');
+    if (t) {
+      const ts = Number(t);
+      if (Date.now() - ts < ADMIN_TTL) return ts;
+      localStorage.removeItem('adminUnlockedAt');
+    }
+  } catch { /* ignored */ }
+  return null;
 }
 
 const adminSlice = createSlice({
   name: 'admin',
   initialState: {
-    unlockedAt: null,
+    unlockedAt: loadUnlockedAt(),
     ...loadLockout(),
   },
   reducers: {
@@ -31,9 +43,11 @@ const adminSlice = createSlice({
       state.unlockedAt = Date.now();
       state.failedAttempts = 0;
       state.lockedOutAt = null;
+      localStorage.setItem('adminUnlockedAt', String(state.unlockedAt));
     },
     lock(state) {
       state.unlockedAt = null;
+      localStorage.removeItem('adminUnlockedAt');
     },
     incrementAttempts(state) {
       state.failedAttempts += 1;

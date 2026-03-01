@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { useSelector, useDispatch } from "react-redux";
+// eslint-disable-next-line no-unused-vars
 import { motion, AnimatePresence } from "framer-motion";
 import {
   setQrCode,
@@ -98,7 +99,7 @@ export default function SettlementTab({ currentUser }) {
         savedCustom ? { label: savedCustom.label || "", number: savedCustom.number || "" } : null,
       );
     }
-  }, [savedInfo.gcash, savedInfo.maya, savedInfo.maribank, savedCustom?.label, savedCustom?.number]);
+  }, [savedInfo.gcash, savedInfo.maya, savedInfo.maribank, savedCustom?.label, savedCustom?.number, infoDirty, savedCustom]);
 
   const { balances } = useMemo(
     () => computeBalances(expenses, travelers, paidExpenses, numberOfCars),
@@ -332,7 +333,7 @@ export default function SettlementTab({ currentUser }) {
       if (oldPath && oldPath !== blobPath) {
         try {
           await deleteQrCode(syncConfig, oldPath);
-        } catch {}
+        } catch { /* ignored */ }
       }
       dispatch(
         setQrCode({ name: currentUser, type: walletKey, path: blobPath }),
@@ -358,7 +359,7 @@ export default function SettlementTab({ currentUser }) {
     if (oldPath) {
       try {
         await deleteQrCode(syncConfig, oldPath);
-      } catch {}
+      } catch { /* ignored */ }
     }
     dispatch(toast("QR code removed."));
   };
@@ -449,7 +450,7 @@ export default function SettlementTab({ currentUser }) {
       if (oldProof?.path) {
         try {
           await deleteProofOfPayment(syncConfig, oldProof.path);
-        } catch {}
+        } catch { /* ignored */ }
       }
       const blobPath = await uploadProofOfPayment(
         syncConfig,
@@ -475,7 +476,7 @@ export default function SettlementTab({ currentUser }) {
     if (proof?.path) {
       try {
         await deleteProofOfPayment(syncConfig, proof.path);
-      } catch {}
+      } catch { /* ignored */ }
     }
     dispatch(removeProofOfPayment(settlementKey));
     dispatch(toast("Proof removed."));
@@ -486,7 +487,7 @@ export default function SettlementTab({ currentUser }) {
     if (proof?.path) {
       try {
         await deleteProofOfPayment(syncConfig, proof.path);
-      } catch {}
+      } catch { /* ignored */ }
     }
     dispatch(
       declineProofOfPayment({ settlementKey, declinedBy: currentUser, reason, amountReceived: amountReceived || 0 }),

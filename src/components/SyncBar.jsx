@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
+// eslint-disable-next-line no-unused-vars
 import { motion } from 'framer-motion';
 import { isConfigured } from '../utils/firebase';
 import { startAutoPolling, stopAutoPolling } from '../utils/sync';

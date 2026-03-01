@@ -202,7 +202,7 @@ const tripSlice = createSlice({
 
       const cloudExpenses = ensureIds(safeArray(cloud.expenses).map(e => {
         if (!e || typeof e !== 'object') return null;
-        const { hasReceipt, receipt, ...rest } = e;
+        const { hasReceipt: _hasReceipt, receipt: _receipt, ...rest } = e;
         return { ...rest, amount: safeNum(rest.amount, 0), splitAmong: safeArray(rest.splitAmong), receiptPath: rest.receiptPath || null };
       }).filter(Boolean));
       const cloudHotelPayments = ensureIds(safeArray(cloud.hotelPayments).filter(p => p && typeof p === 'object'));
