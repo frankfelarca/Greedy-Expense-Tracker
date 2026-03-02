@@ -420,11 +420,11 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [accepted, setAccepted] = useState(() => localStorage.getItem('termsAccepted') === 'true');
   const [showPaymentSetup, setShowPaymentSetup] = useState(false);
-  const [activeTab, setActiveTab] = useState('expenses');
+  const travelers = useSelector(s => s.trip.travelers);
+  const [activeTab, setActiveTab] = useState(travelers.length === 0 ? 'trip' : 'expenses');
   const [expenseDrawerOpen, setExpenseDrawerOpen] = useState(false);
   const { isAdmin, showPasswordModal, handlePasswordSubmit, handlePasswordClose } = useAdmin();
   const tutorial = useTutorial();
-  const travelers = useSelector(s => s.trip.travelers);
   const expenseLockDate = useSelector(s => s.trip.expenseLockDate);
   const isExpenseLocked = expenseLockDate && new Date(expenseLockDate) <= new Date() && !isAdmin;
   const { countdown: lockCountdown } = useCountdownTo(expenseLockDate);
